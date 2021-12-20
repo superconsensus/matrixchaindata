@@ -12,7 +12,7 @@ import (
 
 // 测试是否可以将数据写入数据库
 func Test_Scan(t *testing.T) {
-	dbSource := "mongodb://admin:admin@120.78.200.177:27017"
+	dbSource := "mongodb://admin:admin@192.168.199.124:27017"
 	database := "boxi"
 	node := "120.79.69.94:37102"
 	bcname := "xuper"
@@ -22,7 +22,6 @@ func Test_Scan(t *testing.T) {
 		fmt.Println("create db clien error")
 	}
 	writeDB := NewWriterDB(dbClient)
-
 
 	// 监听数据
 	conn := chain_server.NewConnet(node)
