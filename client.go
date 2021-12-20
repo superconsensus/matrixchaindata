@@ -13,7 +13,7 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 
-	"xuperdata/utils"
+	"matrixchaindata/utils"
 )
 
 type Config struct {
@@ -49,14 +49,14 @@ type PubsubClientCommand struct {
 	//DescFile   string //事件订阅的描述文件
 	//Command    string //订阅的操作：订阅或者取消订阅
 	//EventID    string //事件的id
-	DestIP     string //节点的ip
-	cli *Cli
-	cmd *cobra.Command
+	DestIP string //节点的ip
+	cli    *Cli
+	cmd    *cobra.Command
 
 	filter      string
 	oneline     bool
 	skipEmptyTx bool
-	nodeName    string  //节点名
+	nodeName    string //节点名
 
 	DataSource string //mongodb的数据源
 	Database   string //mongodb的数据库
@@ -143,8 +143,7 @@ func (c *PubsubClientCommand) watch(ctx context.Context) error {
 		Filter: buf,
 	}
 
-
-	err = mongoClient.Init()     //获取数据库中缺少的区块
+	err = mongoClient.Init() //获取数据库中缺少的区块
 	if err != nil {
 		log.Fatalf("get lack blocks failed, error: %s", err)
 	}
@@ -178,7 +177,6 @@ func (c *PubsubClientCommand) watch(ctx context.Context) error {
 		if err != nil {
 			log.Printf("save block to mongodb failed, height: %d, error: %s", block.Height, err)
 		}
-
 
 		//c.printBlock(&block)
 	}

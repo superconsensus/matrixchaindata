@@ -2,11 +2,10 @@ package service
 
 import (
 	"fmt"
+	"matrixchaindata/global"
+	"matrixchaindata/internal/api-server/dao"
 	"testing"
-	"xuperdata/global"
-	"xuperdata/internal/api-server/dao"
 )
-
 
 // 插入一条链记录
 func TestServe_AddChain(t *testing.T) {
@@ -15,7 +14,6 @@ func TestServe_AddChain(t *testing.T) {
 	bcname := "nft"
 	Dao := GetDaoforScan()
 	server := newServe(Dao)
-
 
 	server.AddChain(node, bcname)
 	//server.AddChain(node, bcname)
@@ -38,7 +36,7 @@ func TestServe_AddChain(t *testing.T) {
 	//fmt.Printf("%#v", data)
 }
 
-func GetDaoforScan()  *dao.Dao  {
+func GetDaoforScan() *dao.Dao {
 	dbSource := "mongodb://admin:admin@192.168.199.128:27017"
 	database := "boxi"
 	//node := "120.79.69.94:37102"

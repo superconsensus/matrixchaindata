@@ -3,23 +3,24 @@ package controller
 import (
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"matrixchaindata/internal/api-server/service"
+	chain_server "matrixchaindata/internal/chain-server"
 	"net/http"
-	"xuperdata/internal/api-server/service"
-	chain_server "xuperdata/internal/chain-server"
 )
 
 // 扫描控制器
-type ScanController struct {}
+type ScanController struct{}
 
 // 添加一条链
 // 节点 + 链名
 // 不同网络，相同链名可以区分
 // 相同网络，不同节点会造成重复数据
 type AddChainReq struct {
-	Bcname string `json:"bcname"`        // 链名
-	Node string  `json:"node"`           // 节点
+	Bcname string `json:"bcname"` // 链名
+	Node   string `json:"node"`   // 节点
 }
-func (s *ScanController) AddChain(c *gin.Context)  {
+
+func (s *ScanController) AddChain(c *gin.Context) {
 	// 添加一条链
 	params := &AddChainReq{}
 	err := c.ShouldBindJSON(params)
@@ -65,7 +66,7 @@ func (s *ScanController) AddChain(c *gin.Context)  {
 			"result": "add chain error",
 		})
 		return
-	}else if result == 1 {
+	} else if result == 1 {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"result": "chain is exist",
 		})
@@ -80,8 +81,9 @@ func (s *ScanController) AddChain(c *gin.Context)  {
 // 扫描请求参数
 type ScanReq struct {
 	Bcname string `json:"bcname"`
-	Node string  `json:"node"`
+	Node   string `json:"node"`
 }
+
 // 启动扫描
 func (s *ScanController) StartScan(c *gin.Context) {
 	params := &ScanReq{}
@@ -93,10 +95,10 @@ func (s *ScanController) StartScan(c *gin.Context) {
 		return
 	}
 	// 节点 + 链名
-	err =  service.NewSever().StartScanService(params.Node,params.Bcname)
+	err = service.NewSever().StartScanService(params.Node, params.Bcname)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"result": fmt.Sprintf("start err: %v",err),
+			"result": fmt.Sprintf("start err: %v", err),
 		})
 		return
 	}
@@ -107,7 +109,7 @@ func (s *ScanController) StartScan(c *gin.Context) {
 }
 
 // 停止扫描
-func (s *ScanController) StopScan(c *gin.Context){
+func (s *ScanController) StopScan(c *gin.Context) {
 	params := &ScanReq{}
 	err := c.ShouldBindJSON(params)
 	if err != nil {
@@ -116,10 +118,10 @@ func (s *ScanController) StopScan(c *gin.Context){
 		})
 		return
 	}
-	err =  service.NewSever().StopScanService( params.Node,params.Bcname,)
+	err = service.NewSever().StopScanService(params.Node, params.Bcname)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"result": fmt.Sprintf("stop err: %v",err),
+			"result": fmt.Sprintf("stop err: %v", err),
 		})
 		return
 	}
@@ -130,7 +132,7 @@ func (s *ScanController) StopScan(c *gin.Context){
 }
 
 // 获取已经添加的链的信息
-func (s *ScanController) GetChainsInfo(c *gin.Context)  {
+func (s *ScanController) GetChainsInfo(c *gin.Context) {
 	allChains, err := service.NewSever().GetAllChainsInfo()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -138,7 +140,7 @@ func (s *ScanController) GetChainsInfo(c *gin.Context)  {
 		})
 		return
 	}
-	c.JSON(http.StatusOK,&allChains)
+	c.JSON(http.StatusOK, &allChains)
 	return
 }
 
@@ -154,4 +156,3 @@ func (s *ScanController) GetScanningChains(c *gin.Context) {
 	c.JSON(http.StatusOK, &scanningChains)
 	return
 }
-

@@ -2,9 +2,9 @@ package service
 
 import (
 	"fmt"
+	"matrixchaindata/global"
+	"matrixchaindata/internal/api-server/dao"
 	"testing"
-	"xuperdata/global"
-	"xuperdata/internal/api-server/dao"
 )
 
 // 测试区块的读取
@@ -24,7 +24,6 @@ func TestServe_GetBlock(t *testing.T) {
 	//heght, _ := server.GetHeight(bcname)
 	//fmt.Println("height:",heght)
 
-
 	data, _ := server.GetBockekList(3403820, 5, bcname)
 	for _, v := range data {
 		fmt.Println(v)
@@ -32,7 +31,7 @@ func TestServe_GetBlock(t *testing.T) {
 
 }
 
-func GetDao()  *dao.Dao  {
+func GetDao() *dao.Dao {
 	dbSource := "mongodb://admin:admin@192.168.199.128:27017"
 	database := "boxi"
 	//node := "120.79.69.94:37102"

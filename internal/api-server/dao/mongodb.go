@@ -1,7 +1,7 @@
 package dao
 
 import (
-	"xuperdata/global"
+	"matrixchaindata/global"
 )
 
 type Dao struct {
@@ -10,7 +10,7 @@ type Dao struct {
 }
 
 // 新建数据连接实例
-func NewDao(mongoclient *global.MongoClient)  *Dao {
+func NewDao(mongoclient *global.MongoClient) *Dao {
 	return &Dao{
 		MongoClient: mongoclient,
 	}
@@ -19,5 +19,3 @@ func NewDao(mongoclient *global.MongoClient)  *Dao {
 func (d *Dao) Close() {
 	d.MongoClient.Close()
 }
-
-

@@ -14,7 +14,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
 
-	"xuperdata/utils"
+	"matrixchaindata/utils"
 )
 
 var (
@@ -25,7 +25,7 @@ var (
 type Count struct {
 	//ID        primitive.ObjectID `bson:"_id,omitempty"`
 	TxCount   int64  `bson:"tx_count"`   //交易总数
-	CoinCount string  `bson:"coin_count"` //全网金额
+	CoinCount string `bson:"coin_count"` //全网金额
 	AccCount  int64  `bson:"acc_count"`  //账户总数
 	Accounts  bson.A `bson:"accounts"`   //账户列表
 }
@@ -136,21 +136,20 @@ func (m *MongoClient) SaveTx(block *utils.InternalBlock) error {
 			state = "success"
 		}
 		//截断一下,统一时间戳
-		stringtime := strconv.FormatInt(tx.Timestamp,10)
+		stringtime := strconv.FormatInt(tx.Timestamp, 10)
 		if len(stringtime) > 13 {
-			content := stringtime[0 : 13]
-			tx.Timestamp,_ = strconv.ParseInt(content, 10, 64)
+			content := stringtime[0:13]
+			tx.Timestamp, _ = strconv.ParseInt(content, 10, 64)
 		}
-		if tx.Desc == "1"{   //投票奖励
+		if tx.Desc == "1" { //投票奖励
 			status = "vote_reward"
-		}else if tx.Desc == "thaw"{   //解冻
+		} else if tx.Desc == "thaw" { //解冻
 			status = "thaw"
-		}else if tx.Desc == "award"{   //出块奖励
+		} else if tx.Desc == "award" { //出块奖励
 			status = "block_reward"
-		}else {							//其他正常交易
+		} else { //其他正常交易
 			status = "normal"
 		}
-
 
 		////获取formaddress
 		//var formaddress string
@@ -188,8 +187,8 @@ func (m *MongoClient) SaveTx(block *utils.InternalBlock) error {
 			bson.M{"_id": tx.Txid},
 			bson.D{
 				{"_id", tx.Txid},
-				{"status",status},
-				{"height",height},
+				{"status", status},
+				{"height", height},
 				{"tx", tx},
 				//{"blockHeight", block.Height},
 				//{"timestamp", tx.Timestamp},

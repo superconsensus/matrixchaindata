@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"google.golang.org/grpc"
 	"log"
-	"xuperdata/global"
-	chain_server "xuperdata/internal/chain-server"
-	"xuperdata/utils"
+	"matrixchaindata/global"
+	chain_server "matrixchaindata/internal/chain-server"
+	"matrixchaindata/utils"
 )
 
 // 扫描指定链---将数据存进数据库
@@ -111,19 +111,19 @@ import (
 // 扫描器
 type Scaner struct {
 	// 链相关
-	Node string
-	Bcname string
+	Node     string
+	Bcname   string
 	GrpcConn *grpc.ClientConn
 	// 数据库
-	DBWrite  *WriteDB
+	DBWrite *WriteDB
 	// 监听器用于获取数据
 	Watcher *chain_server.Watcher
 	// exit
-	Exit  chan struct{}
+	Exit chan struct{}
 }
 
 // 创建扫描器
-func NewScanner(node, bcname string) (*Scaner, error)  {
+func NewScanner(node, bcname string) (*Scaner, error) {
 	// 创建grpc连接
 	conn := chain_server.NewConnet(node)
 	if conn == nil {
@@ -141,13 +141,13 @@ func NewScanner(node, bcname string) (*Scaner, error)  {
 	}
 
 	return &Scaner{
-		Node: node,
-		Bcname: bcname,
+		Node:     node,
+		Bcname:   bcname,
 		GrpcConn: conn,
-		DBWrite: writeDB,
-		Watcher: watcher,
-		Exit: make(chan struct{}),
-	},nil
+		DBWrite:  writeDB,
+		Watcher:  watcher,
+		Exit:     make(chan struct{}),
+	}, nil
 }
 
 // 停止扫描工作
@@ -178,7 +178,7 @@ func (s *Scaner) Start() error {
 			s.Stop()
 			return
 		}()
-		err := s.DBWrite.Init(s.Node,s.Bcname)
+		err := s.DBWrite.Init(s.Node, s.Bcname)
 		if err != nil {
 			log.Println(err)
 		}

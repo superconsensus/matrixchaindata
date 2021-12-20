@@ -3,20 +3,19 @@ package main
 import (
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"matrixchaindata/global"
+	"matrixchaindata/internal/api-server/router"
+	"matrixchaindata/settings"
 	"os"
-	"xuperdata/global"
-	"xuperdata/internal/api-server/router"
-	"xuperdata/settings"
 )
 
-
-func main()  {
+func main() {
 	//读取配置文件
 	dir, err := os.Getwd()
 	if err != nil {
 		panic(err)
 	}
-	settings.ParseConfig(dir+"/config/config.json")
+	settings.ParseConfig(dir + "/config/config.json")
 	fmt.Printf("%#v", settings.Setting)
 
 	// 实例化数据库

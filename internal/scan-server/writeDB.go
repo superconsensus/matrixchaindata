@@ -8,13 +8,12 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"log"
+	"matrixchaindata/global"
+	chain_server "matrixchaindata/internal/chain-server"
+	"matrixchaindata/utils"
 	"strconv"
 	"sync"
-	"xuperdata/global"
-	chain_server "xuperdata/internal/chain-server"
-	"xuperdata/utils"
 )
-
 
 // db 目前有4张表
 // count 统计信息表
@@ -28,16 +27,16 @@ import (
 //  tx_xxx
 //  account_xxx
 
-
 var (
 	gosize = 10
- 	counts *Count
- 	locker sync.Mutex
+	counts *Count
+	locker sync.Mutex
 )
+
 type Count struct {
 	//ID        primitive.ObjectID `bson:"_id,omitempty"`
 	TxCount   int64  `bson:"tx_count"`   //交易总数
-	CoinCount string  `bson:"coin_count"` //全网金额
+	CoinCount string `bson:"coin_count"` //全网金额
 	AccCount  int64  `bson:"acc_count"`  //账户总数
 	Accounts  bson.A `bson:"accounts"`   //账户列表
 }
@@ -56,8 +55,8 @@ func NewWriterDB(mongoclient *global.MongoClient) *WriteDB {
 }
 
 // 谨慎，目前传入的是全局的db连接
-func (w *WriteDB) Cloce()  {
-     w.MongoClient.Close()
+func (w *WriteDB) Cloce() {
+	w.MongoClient.Close()
 }
 
 //获取数据库中缺少的区块
@@ -188,7 +187,7 @@ func (w *WriteDB) Save(block *utils.InternalBlock, node, bcname string) error {
 	}
 
 	//存区块
-	err = w.SaveBlock(block ,node, bcname)
+	err = w.SaveBlock(block, node, bcname)
 	if err != nil {
 		return err
 	}
@@ -282,7 +281,7 @@ func (w *WriteDB) SaveCount(block *utils.InternalBlock, node, bcname string) err
 }
 
 // 保存交易数据
-func (w *WriteDB) SaveTx(block *utils.InternalBlock,node, bcname string) error {
+func (w *WriteDB) SaveTx(block *utils.InternalBlock, node, bcname string) error {
 
 	//索引 最新的交易
 	//global.col.createIndex({"timestamp":-1}, {background: true})
@@ -304,28 +303,27 @@ func (w *WriteDB) SaveTx(block *utils.InternalBlock,node, bcname string) error {
 			state = "success"
 		}
 		//截断一下,统一时间戳
-		stringtime := strconv.FormatInt(tx.Timestamp,10)
+		stringtime := strconv.FormatInt(tx.Timestamp, 10)
 		if len(stringtime) > 13 {
-			content := stringtime[0 : 13]
-			tx.Timestamp,_ = strconv.ParseInt(content, 10, 64)
+			content := stringtime[0:13]
+			tx.Timestamp, _ = strconv.ParseInt(content, 10, 64)
 		}
-		if tx.Desc == "1"{   //投票奖励
+		if tx.Desc == "1" { //投票奖励
 			status = "vote_reward"
-		}else if tx.Desc == "thaw"{   //解冻
+		} else if tx.Desc == "thaw" { //解冻
 			status = "thaw"
-		}else if tx.Desc == "award"{   //出块奖励
+		} else if tx.Desc == "award" { //出块奖励
 			status = "block_reward"
-		}else {							//其他正常交易
+		} else { //其他正常交易
 			status = "normal"
 		}
-
 
 		_, err = txCol.ReplaceOne(nil,
 			bson.M{"_id": tx.Txid},
 			bson.D{
 				{"_id", tx.Txid},
-				{"status",status},
-				{"height",height},
+				{"status", status},
+				{"height", height},
 				{"tx", tx},
 				//{"blockHeight", block.Height},
 				//{"timestamp", tx.Timestamp},
@@ -379,7 +377,6 @@ func (w *WriteDB) SaveBlock(block *utils.InternalBlock, node, bcname string) err
 	_, err := blockCol.InsertOne(nil, iblock)
 	return err
 }
-
 
 //找出缺少的区块
 func findLacks(heights []int64) []int64 {

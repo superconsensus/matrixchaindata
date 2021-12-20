@@ -3,11 +3,11 @@ package scan_server
 import (
 	"fmt"
 	"log"
+	"matrixchaindata/global"
+	chain_server "matrixchaindata/internal/chain-server"
+	"matrixchaindata/utils"
 	"testing"
 	"time"
-	"xuperdata/global"
-	chain_server "xuperdata/internal/chain-server"
-	"xuperdata/utils"
 )
 
 // 测试是否可以将数据写入数据库
