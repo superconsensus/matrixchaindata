@@ -15,7 +15,7 @@ type Watcher struct {
 	Exit              chan<- struct{}
 }
 
-// 监听
+// 监听链上的数据
 // WatchBlockEvent new watcher for block event.
 func WatchBlockEvent(bcname string, conn *grpc.ClientConn) (*Watcher, error) {
 	// 创建监听器
@@ -39,7 +39,7 @@ func WatchBlockEvent(bcname string, conn *grpc.ClientConn) (*Watcher, error) {
 
 	// 创建管道，用于存放监听到的区块数据
 	// 管道大小
-	filteredBlockChan := make(chan *pb.InternalBlock, 50)
+	filteredBlockChan := make(chan *pb.InternalBlock, 100)
 	exit := make(chan struct{})
 	watcher.Exit = exit
 	watcher.FilteredBlockChan = filteredBlockChan

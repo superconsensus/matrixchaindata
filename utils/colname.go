@@ -4,20 +4,21 @@ import "fmt"
 
 //  返回collection名字
 // count
-func CountCol(bcname string) string {
-	return fmt.Sprintf("count_%s", bcname)
+func CountCol(node, bcname string) string {
+	return fmt.Sprintf("count_%s_%s", node, bcname)
 }
+
 // block
-func BlockCol(bcname string) string {
-	return fmt.Sprintf("block_%s",bcname)
+func BlockCol(node, bcname string) string {
+	return fmt.Sprintf("block_%s_%s", node, bcname)
 }
+
 // tx
-func TxCol(bcname string) string {
-	return fmt.Sprintf("tx_%s",bcname)
+func TxCol(node, bcname string) string {
+	return fmt.Sprintf("tx_%s_%s", node, bcname)
 }
 
 // account
-func AccountCol(bcname string) string {
-	return fmt.Sprintf("account_%s",bcname)
+func AccountCol(node, bcname string) string {
+	return fmt.Sprintf("account_%s_%s", node, bcname)
 }
-

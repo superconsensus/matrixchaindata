@@ -2,14 +2,12 @@ package scan_server
 
 import (
 	"fmt"
-	"github.com/panjf2000/ants/v2"
 	"github.com/wxnacy/wgo/arrays"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"log"
 	"matrixchaindata/global"
-	chain_server "matrixchaindata/internal/chain-server"
 	"matrixchaindata/utils"
 	"strconv"
 	"sync"
@@ -61,147 +59,6 @@ func (w *WriteDB) Cloce() {
 	w.MongoClient.Close()
 }
 
-//获取数据库中缺少的区块
-func (w *WriteDB) HandleLackBlocks(node, bcname string) error {
-	// 最新高度
-	_, height, err := chain_server.GetUtxoTotalAndTrunkHeight(node, bcname)
-	if err != nil {
-		return err
-	}
-	// 获取缺少的区块
-	return w.GetLackBlocks(&utils.InternalBlock{
-		Height: height,
-	}, node, bcname)
-}
-
-// 获取最新区块之前的block
-// 读了两次数据库
-func (w *WriteDB) GetLackBlocks(block *utils.InternalBlock, node, bcname string) error {
-	log.Println("start get lack blocks")
-	// 获取区块集合
-	blockCol := w.MongoClient.Database.Collection(fmt.Sprintf("block_%s", bcname))
-
-	//获取数据库中最后的区块高度
-	sort := -1
-	limit := int64(1)
-	var heights []int64
-
-again:
-	{
-		cursor, err := blockCol.Find(nil, bson.M{}, &options.FindOptions{
-			Projection: bson.M{"_id": 1},
-			Sort:       bson.M{"_id": sort},
-			Limit:      &limit,
-		})
-
-		if err != nil && err != mongo.ErrNoDocuments {
-			return err
-		}
-		var reply bson.A
-		if cursor != nil {
-			err = cursor.All(nil, &reply)
-		}
-		//fmt.Println("reply:", reply)
-
-		//获取需要遍历的区块高度
-		heights = make([]int64, len(reply))
-		for i, v := range reply {
-			heights[i] = v.(bson.D).Map()["_id"].(int64)
-		}
-		//fmt.Println("heights:", heights)
-	}
-
-	//高度不匹配,找出缺少的区块高度，并获取区块
-	if len(heights) == 1 && heights[0] != block.Height-1 {
-		sort = 1         //顺序排列
-		limit = int64(0) //获取所有区块
-		goto again
-	}
-
-	//添加一个值,避免空指针异常
-	heights = append(heights, block.Height)
-	//找到缺少的区块
-	lacks := findLacks(heights)
-
-	//用个协程池,避免控制并发量
-	defer ants.Release()
-	wg := sync.WaitGroup{}
-	p, _ := ants.NewPoolWithFunc(gosize, func(i interface{}) {
-		func(height int64) {
-			iblock, err := chain_server.GetBlockByHeight(node, bcname, height)
-			if err != nil {
-				log.Printf("get block by height failed, height: %d, error: %s", height, err)
-				return
-			}
-
-			err = w.Save(utils.FromInternalBlockPB(iblock), node, bcname)
-			if err != nil {
-				log.Printf("save block to mongodb failed, height: %d, error: %s", height, err)
-				return
-			}
-			//fmt.Println("succeed get lack block:", height)
-		}(i.(int64))
-		wg.Done()
-	})
-	defer p.Release()
-	log.Println("缺少区块的数量：", len(lacks))
-	for _, height := range lacks {
-		//fmt.Println("start get lack block:", height)
-		wg.Add(1)
-		_ = p.Invoke(height)
-
-		//未使用协程池
-		//go func(height int64) {
-		//	defer wg.Done()
-		//	iblock, err := GetBlockByHeight(height)
-		//	if err != nil {
-		//		log.Println(err)
-		//		return
-		//	}
-		//
-		//	err = m.Save(utils.FromInternalBlockPB(iblock))
-		//	if err != nil {
-		//		log.Println(err)
-		//		return
-		//	}
-		//	fmt.Println("succeed get lack block:", height)
-		//
-		//}(height)
-	}
-
-	wg.Wait()
-	log.Println("get lack blocks finished")
-	//fmt.Printf("running goroutines: %d\n", p.Running())
-	return nil
-}
-
-// 找出缺少的区块
-func findLacks(heights []int64) []int64 {
-	log.Printf("mongodb's blocks size: %d", len(heights))
-
-	if len(heights) == 0 {
-		return nil
-	}
-
-	lacks := make([]int64, 0)
-
-	var i int64 = 0
-	for ; i < heights[len(heights)-1]; i++ {
-		//不存在,记录该值
-		index := arrays.ContainsInt(heights, i)
-		if index == -1 {
-			lacks = append(lacks, i)
-			continue
-		}
-		//存在,剔除该值
-		heights = append(heights[:index], heights[index+1:]...)
-		//fmt.Println("heights:", heights)
-	}
-	//fmt.Println("lacks:", lacks)
-	log.Printf("lack blocks size: %d", len(lacks))
-	return lacks
-}
-
 // -----------------------------------------------------------------
 //					         写入数据库
 // -----------------------------------------------------------------
@@ -236,7 +93,7 @@ func (w *WriteDB) Save(block *utils.InternalBlock, node, bcname string) error {
 
 // 这个区块的数据是否处理过了？
 func (w *WriteDB) IsHandle(block_id int64, node, bcname string) bool {
-	blockCol := w.MongoClient.Database.Collection(fmt.Sprintf("block_%s", bcname))
+	blockCol := w.MongoClient.Database.Collection(fmt.Sprintf("block_%s_%s", node, bcname))
 	data := blockCol.FindOne(nil, bson.D{{"_id", block_id}})
 	if data.Err() != nil {
 		return false
