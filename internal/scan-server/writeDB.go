@@ -33,12 +33,14 @@ var (
 	locker sync.Mutex
 )
 
+// todo 增加合约列表
 type Count struct {
 	//ID        primitive.ObjectID `bson:"_id,omitempty"`
 	TxCount   int64  `bson:"tx_count"`   //交易总数
 	CoinCount string `bson:"coin_count"` //全网金额
 	AccCount  int64  `bson:"acc_count"`  //账户总数
 	Accounts  bson.A `bson:"accounts"`   //账户列表
+	Contracts bson.A `bson:"contracts"`  // 合约列表
 }
 
 // 写db结构体
@@ -60,23 +62,24 @@ func (w *WriteDB) Cloce() {
 }
 
 //获取数据库中缺少的区块
-func (w *WriteDB) Init(node, bcname string) error {
+func (w *WriteDB) HandleLackBlocks(node, bcname string) error {
+	// 最新高度
 	_, height, err := chain_server.GetUtxoTotalAndTrunkHeight(node, bcname)
 	if err != nil {
 		return err
 	}
-	// 获取到最新的区块
+	// 获取缺少的区块
 	return w.GetLackBlocks(&utils.InternalBlock{
 		Height: height,
 	}, node, bcname)
 }
 
-// 获取最新的block
+// 获取最新区块之前的block
+// 读了两次数据库
 func (w *WriteDB) GetLackBlocks(block *utils.InternalBlock, node, bcname string) error {
 	log.Println("start get lack blocks")
 	// 获取区块集合
-	tableName := fmt.Sprintf("block_%s", bcname)
-	blockCol := w.MongoClient.Database.Collection(tableName)
+	blockCol := w.MongoClient.Database.Collection(fmt.Sprintf("block_%s", bcname))
 
 	//获取数据库中最后的区块高度
 	sort := -1
@@ -141,6 +144,7 @@ again:
 		wg.Done()
 	})
 	defer p.Release()
+	log.Println("缺少区块的数量：", len(lacks))
 	for _, height := range lacks {
 		//fmt.Println("start get lack block:", height)
 		wg.Add(1)
@@ -171,8 +175,43 @@ again:
 	return nil
 }
 
+// 找出缺少的区块
+func findLacks(heights []int64) []int64 {
+	log.Printf("mongodb's blocks size: %d", len(heights))
+
+	if len(heights) == 0 {
+		return nil
+	}
+
+	lacks := make([]int64, 0)
+
+	var i int64 = 0
+	for ; i < heights[len(heights)-1]; i++ {
+		//不存在,记录该值
+		index := arrays.ContainsInt(heights, i)
+		if index == -1 {
+			lacks = append(lacks, i)
+			continue
+		}
+		//存在,剔除该值
+		heights = append(heights[:index], heights[index+1:]...)
+		//fmt.Println("heights:", heights)
+	}
+	//fmt.Println("lacks:", lacks)
+	log.Printf("lack blocks size: %d", len(lacks))
+	return lacks
+}
+
+// -----------------------------------------------------------------
+//					         写入数据库
+// -----------------------------------------------------------------
 // 保存区块数据信息
 func (w *WriteDB) Save(block *utils.InternalBlock, node, bcname string) error {
+	// 多加一层判断，这个区块是否处理过了
+	if w.IsHandle(block.Height, node, bcname) {
+		log.Println("this block is handle", block.Height)
+		return fmt.Errorf("height is handled, countine")
+	}
 
 	//存统计
 	err := w.SaveCount(block, node, bcname)
@@ -195,12 +234,21 @@ func (w *WriteDB) Save(block *utils.InternalBlock, node, bcname string) error {
 	return nil
 }
 
+// 这个区块的数据是否处理过了？
+func (w *WriteDB) IsHandle(block_id int64, node, bcname string) bool {
+	blockCol := w.MongoClient.Database.Collection(fmt.Sprintf("block_%s", bcname))
+	data := blockCol.FindOne(nil, bson.D{{"_id", block_id}})
+	if data.Err() != nil {
+		return false
+	}
+	return true
+}
+
 // 保存统计数据
 func (w *WriteDB) SaveCount(block *utils.InternalBlock, node, bcname string) error {
 	locker.Lock()
 	defer locker.Unlock()
 
-	// todo 调整集合的名称
 	// 总数统计集合
 	countCol := w.MongoClient.Database.Collection(fmt.Sprintf("count_%s", bcname))
 	// 账号统计集合
@@ -233,6 +281,7 @@ func (w *WriteDB) SaveCount(block *utils.InternalBlock, node, bcname string) err
 
 	//获取账户地址
 	for _, tx := range block.Transactions {
+		// 账户
 		for _, txOutput := range tx.TxOutputs {
 			//过滤矿工地址
 			if txOutput.ToAddr == "$" {
@@ -244,12 +293,29 @@ func (w *WriteDB) SaveCount(block *utils.InternalBlock, node, bcname string) err
 				//缓存账户
 				counts.Accounts = append(counts.Accounts, txOutput.ToAddr)
 				//写入数据库
-				_, err := accCol.InsertOne(nil, bson.D{
-					{"_id", txOutput.ToAddr},
-					{"timestamp", tx.Timestamp},
-				})
+				//_, err := accCol.InsertOne(nil, bson.D{
+				//	{"_id", txOutput.ToAddr},
+				//	{"timestamp", tx.Timestamp},
+				//})
+				// by boxi
+				_, err := accCol.UpdateOne(nil,
+					bson.D{{"_id", txOutput.ToAddr}},
+					bson.D{
+						{"_id", txOutput.ToAddr},
+						{"timestamp", tx.Timestamp}})
 				if err != nil {
 					return err
+				}
+			}
+		}
+		// 统计部署的合约合约
+		if tx.ContractRequests != nil {
+			for _, v := range tx.ContractRequests {
+				// 判断合约名字是否存在
+				i := arrays.Contains(counts.Contracts, v.ContractName)
+				if i == -1 {
+					// 缓存存起来
+					counts.Contracts = append(counts.Contracts, v.ContractName)
 				}
 			}
 		}
@@ -259,21 +325,25 @@ func (w *WriteDB) SaveCount(block *utils.InternalBlock, node, bcname string) err
 	counts.AccCount = int64(len(counts.Accounts))
 	//统计交易总数
 	counts.TxCount += int64(block.TxCount)
+
+	// 扫描旧的区块的时候，每次块都请求一次，链服务器压力大
+	// io 过程漫长
 	//统计全网金额
-	total, _, err := chain_server.GetUtxoTotalAndTrunkHeight(node, bcname)
-	if err != nil {
-		log.Printf("get utxo total failed, height: %d, error: %s", block.Height, err)
-	} else {
-		counts.CoinCount = total
-	}
+	//total, _, err := chain_server.GetUtxoTotalAndTrunkHeight(node, bcname)
+	//if err != nil {
+	//	log.Printf("get utxo total failed, height: %d, error: %s", block.Height, err)
+	//} else {
+	//	counts.CoinCount = total
+	//}
 
 	up := true
-	_, err = countCol.UpdateOne(nil,
+	_, err := countCol.UpdateOne(nil,
 		bson.M{"_id": "chain_count"},
 		&bson.D{{"$set", bson.D{
 			{"tx_count", counts.TxCount},
 			{"coin_count", counts.CoinCount},
 			{"acc_count", counts.AccCount},
+			{"contract_count", counts.Contracts},
 		}}},
 		&options.UpdateOptions{Upsert: &up})
 
@@ -299,7 +369,7 @@ func (w *WriteDB) SaveTx(block *utils.InternalBlock, node, bcname string) error 
 		state := "fail"
 		//区块高度
 		height := block.Height
-		if tx.Blockid != "" {
+		if tx.Blockid != nil {
 			state = "success"
 		}
 		//截断一下,统一时间戳
@@ -351,7 +421,7 @@ func (w *WriteDB) SaveTx(block *utils.InternalBlock, node, bcname string) error 
 	return err
 }
 
-// 保存
+// 保存区块
 func (w *WriteDB) SaveBlock(block *utils.InternalBlock, node, bcname string) error {
 
 	txids := []bson.D{}
@@ -364,43 +434,19 @@ func (w *WriteDB) SaveBlock(block *utils.InternalBlock, node, bcname string) err
 
 	iblock := bson.D{
 		{"_id", block.Height},
-		{"blockid", block.Blockid},
-		{"proposer", block.Proposer},
-		{"transactions", txids},
-		{"txCount", block.TxCount},
-		{"preHash", block.PreHash},
-		{"inTrunk", block.InTrunk},
-		{"timestamp", block.Timestamp},
+		//{"blockid", block.Blockid},
+		//{"proposer", block.Proposer},
+		//{"transactions", txids},
+		//{"txCount", block.TxCount},
+		//{"preHash", block.PreHash},
+		//{"inTrunk", block.InTrunk},
+		//{"timestamp", block.Timestamp},
 	}
 
 	blockCol := w.MongoClient.Database.Collection(fmt.Sprintf("block_%s", bcname))
-	_, err := blockCol.InsertOne(nil, iblock)
+	_, err := blockCol.UpdateOne(
+		nil,
+		bson.D{{"_id", block.Height}},
+		bson.D{{"$set", iblock}})
 	return err
-}
-
-//找出缺少的区块
-func findLacks(heights []int64) []int64 {
-	log.Printf("mongodb's blocks size: %d", len(heights))
-
-	if len(heights) == 0 {
-		return nil
-	}
-
-	lacks := make([]int64, 0)
-
-	var i int64 = 0
-	for ; i < heights[len(heights)-1]; i++ {
-		//不存在,记录该值
-		index := arrays.ContainsInt(heights, i)
-		if index == -1 {
-			lacks = append(lacks, i)
-			continue
-		}
-		//存在,剔除该值
-		heights = append(heights[:index], heights[index+1:]...)
-		//fmt.Println("heights:", heights)
-	}
-	//fmt.Println("lacks:", lacks)
-	log.Printf("lack blocks size: %d", len(lacks))
-	return lacks
 }

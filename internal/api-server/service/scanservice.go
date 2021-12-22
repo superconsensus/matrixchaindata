@@ -119,6 +119,8 @@ func (s *Serve) StopScanService(node, bcname string) error {
 	if scanner == nil {
 		return fmt.Errorf("key error")
 	}
+	// todo
+	// 正在同数据
 	scanner.Stop()
 	// 移除扫描器防止复用
 	scan_server.RemoteScanner(key)

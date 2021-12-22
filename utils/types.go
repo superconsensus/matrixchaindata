@@ -1,202 +1,314 @@
 package utils
 
 import (
-	"crypto/md5"
-	"crypto/sha1"
-	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"math/big"
 
 	"github.com/xuperchain/xuperchain/service/pb"
-	//"github.com/xuperchain/xupercore/bcs/ledger/xledger/state/utxo/txhash"
-	"github.com/xuperchain/xuperchain/service/common"
 )
 
+// HexID bytes
 type HexID []byte
 
+// MarshalJSON json marshal
 func (h HexID) MarshalJSON() ([]byte, error) {
 	hex := hex.EncodeToString(h)
 	return json.Marshal(hex)
 }
 
+// TxInput proto.TxInput
 type TxInput struct {
-	RefTxid   string  `json:"refTxid,omitempty"`
-	RefOffset int32  `json:"refOffset,omitempty"`
-	FromAddr  string `json:"fromAddr,omitempty"`
-	Amount    string `json:"amount,omitempty"`
+	RefTxid   HexID  `json:"refTxid"`
+	RefOffset int32  `json:"refOffset"`
+	FromAddr  string `json:"fromAddr"`
+	Amount    BigInt `json:"amount"`
 }
 
+// TxOutput proto.TxOutput
 type TxOutput struct {
-	Amount string `json:"amount,omitempty"`
-	ToAddr string `json:"toAddr,omitempty"`
+	Amount BigInt `json:"amount"`
+	ToAddr string `json:"toAddr"`
 }
 
+// TxInputExt proto.TxInputExt
 type TxInputExt struct {
-	Bucket    string `json:"bucket,omitempty"`
-	Key       string `json:"key,omitempty"`
-	RefTxid   string  `json:"refTxid,omitempty"`
-	RefOffset int32  `json:"refOffset,omitempty"`
+	Bucket    string `json:"bucket"`
+	Key       string `json:"key"`
+	RefTxid   HexID  `json:"refTxid"`
+	RefOffset int32  `json:"refOffset"`
 }
 
+// TxOutputExt proto.TxOutputExt
 type TxOutputExt struct {
-	Bucket string `json:"bucket,omitempty"`
-	Key    string `json:"key,omitempty"`
-	Value  string `json:"value,omitempty"`
+	Bucket string `json:"bucket"`
+	Key    string `json:"key"`
+	Value  string `json:"value"`
 }
 
 type ResourceLimit struct {
-	Type  string `json:"type,omitempty"`
-	Limit int64  `json:"limit,omitempty"`
+	Type  string `json:"type"`
+	Limit int64  `json:"limit"`
 }
 
+// InvokeRequest proto.InvokeRequest
 type InvokeRequest struct {
-	ModuleName    string            `json:"moduleName,omitempty"`
-	ContractName  string            `json:"contractName,omitempty"`
-	MethodName    string            `json:"methodName,omitempty"`
-	Args          map[string]string `json:"args,omitempty"`
-	ResouceLimits []ResourceLimit   `json:"resource_limits,omitempty"`
+	ModuleName    string            `json:"moduleName"`
+	ContractName  string            `json:"contractName"`
+	MethodName    string            `json:"methodName"`
+	Args          map[string]string `json:"args"`
+	ResouceLimits []ResourceLimit   `json:"resource_limits"`
 }
 
+// GasPrice proto.GasPrice
 type GasPrice struct {
-	CpuRate  int64 `json:"cpu_rate,omitempty"`
-	MemRate  int64 `json:"mem_rate,omitempty"`
-	DiskRate int64 `json:"disk_rate,omitempty"`
-	XfeeRate int64 `json:"xfee_rate,omitempty"`
+	CpuRate  int64 `json:"cpu_rate"`
+	MemRate  int64 `json:"mem_rate"`
+	DiskRate int64 `json:"disk_rate"`
+	XfeeRate int64 `json:"xfee_rate"`
 }
 
+// SignatureInfo proto.SignatureInfo
 type SignatureInfo struct {
-	PublicKey string `json:"publickey,omitempty"`
-	Sign      string  `json:"sign,omitempty"`
+	PublicKey string `json:"publickey"`
+	Sign      HexID  `json:"sign"`
 }
 
+// QCState is the phase of hotstuff
 type QCState int32
 
+// QCState defination
+const (
+	QCState_NEW_VIEW   QCState = 0
+	QCState_PREPARE    QCState = 1
+	QCState_PRE_COMMIT QCState = 2
+	QCState_COMMIT     QCState = 3
+	QCState_DECIDE     QCState = 4
+)
+
+// SignInfo is the signature information of the
 type SignInfo struct {
 	Address   string `protobuf:"bytes,1,opt,name=Address,proto3" json:"Address,omitempty"`
 	PublicKey string `protobuf:"bytes,2,opt,name=PublicKey,proto3" json:"PublicKey,omitempty"`
 	Sign      []byte `protobuf:"bytes,3,opt,name=Sign,proto3" json:"Sign,omitempty"`
 }
 
+// QCSignInfos is the signs of the leader gathered from replicas of a specifically certType.
+// A slice of signs is used at present.
+// TODO @qizheng09: It will be change to Threshold-Signatures after
+// Crypto lib support Threshold-Signatures.
 type QCSignInfos struct {
+	// QCSignInfos
 	QCSignInfos []*SignInfo `protobuf:"bytes,1,rep,name=QCSignInfos,proto3" json:"QCSignInfos,omitempty"`
 }
 
+// QuorumCert is a data type that combines a collection of signatures from replicas.
 type QuorumCert struct {
-	ProposalId  string       `protobuf:"bytes,1,opt,name=ProposalId,proto3" json:"ProposalId,omitempty"`
-	ProposalMsg []byte       `protobuf:"bytes,2,opt,name=ProposalMsg,proto3" json:"ProposalMsg,omitempty"`
-	Type        QCState      `protobuf:"varint,3,opt,name=Type,proto3,enum=pb.QCState" json:"Type,omitempty"`
-	ViewNumber  int64        `protobuf:"varint,4,opt,name=ViewNumber,proto3" json:"ViewNumber,omitempty"`
-	SignInfos   *QCSignInfos `protobuf:"bytes,5,opt,name=SignInfos,proto3" json:"SignInfos,omitempty"`
+	// The id of Proposal this QC certified.
+	ProposalId string `protobuf:"bytes,1,opt,name=ProposalId,proto3" json:"ProposalId,omitempty"`
+	// The msg of Proposal this QC certified.
+	ProposalMsg []byte `protobuf:"bytes,2,opt,name=ProposalMsg,proto3" json:"ProposalMsg,omitempty"`
+	// The current type of this QC certified.
+	// the type contains `NEW_VIEW`, `PREPARE`
+	Type QCState `protobuf:"varint,3,opt,name=Type,proto3,enum=pb.QCState" json:"Type,omitempty"`
+	// The view number of this QC certified.
+	ViewNumber int64 `protobuf:"varint,4,opt,name=ViewNumber,proto3" json:"ViewNumber,omitempty"`
+	// SignInfos is the signs of the leader gathered from replicas
+	// of a specifically certType.
+	SignInfos *QCSignInfos `protobuf:"bytes,5,opt,name=SignInfos,proto3" json:"SignInfos,omitempty"`
 }
 
+// Transaction proto.Transaction
 type Transaction struct {
-	Txid              string            `json:"txid,omitempty"`
-	Blockid           string            `json:"blockid,omitempty"`
-	TxInputs          []TxInput        `json:"txInputs,omitempty"`
-	TxOutputs         []TxOutput       `json:"txOutputs,omitempty"`
-	Desc              string           `json:"desc,omitempty"`
-	Nonce             string           `json:"nonce,omitempty"`
-	Timestamp         int64            `json:"timestamp,omitempty"`
-	Version           int32            `json:"version,omitempty"`
-	Autogen           bool             `json:"autogen,omitempty"`
-	Coinbase          bool             `json:"coinbase,omitempty"`
-	VoteCoinbase      bool             `json:"voteCoinbase,omitempty"`
-	TxInputsExt       []TxInputExt     `json:"txInputsExt,omitempty"`
-	TxOutputsExt      []TxOutputExt    `json:"txOutputsExt,omitempty"`
-	ContractRequests  []*InvokeRequest `json:"contractRequests,omitempty"`
-	Initiator         string           `json:"initiator,omitempty"`
-	AuthRequire       []string         `json:"authRequire,omitempty"`
-	InitiatorSigns    []SignatureInfo  `json:"initiatorSigns,omitempty"`
-	AuthRequireSigns  []SignatureInfo  `json:"authRequireSigns,omitempty"`
-	ReceivedTimestamp int64            `json:"receivedTimestamp,omitempty"`
-	//ModifyBlock       ModifyBlock      `json:"modifyBlock,omitempty"`
+	Txid              HexID            `json:"txid"`
+	Blockid           HexID            `json:"blockid"`
+	TxInputs          []TxInput        `json:"txInputs"`
+	TxOutputs         []TxOutput       `json:"txOutputs"`
+	Desc              string           `json:"desc"`
+	Nonce             string           `json:"nonce"`
+	Timestamp         int64            `json:"timestamp"`
+	Version           int32            `json:"version"`
+	Autogen           bool             `json:"autogen"`
+	Coinbase          bool             `json:"coinbase"`
+	TxInputsExt       []TxInputExt     `json:"txInputsExt"`
+	TxOutputsExt      []TxOutputExt    `json:"txOutputsExt"`
+	ContractRequests  []*InvokeRequest `json:"contractRequests"`
+	Initiator         string           `json:"initiator"`
+	AuthRequire       []string         `json:"authRequire"`
+	InitiatorSigns    []SignatureInfo  `json:"initiatorSigns"`
+	AuthRequireSigns  []SignatureInfo  `json:"authRequireSigns"`
+	ReceivedTimestamp int64            `json:"receivedTimestamp"`
+	ModifyBlock       ModifyBlock      `json:"modifyBlock"`
 }
 
 type ModifyBlock struct {
-	Marked          bool   `json:"marked,omitempty"`
-	EffectiveHeight int64  `json:"effectiveHeight,omitempty"`
-	EffectiveTxid   string `json:"effectiveTxid,omitempty"`
+	Marked          bool   `json:"marked"`
+	EffectiveHeight int64  `json:"effectiveHeight"`
+	EffectiveTxid   string `json:"effectiveTxid"`
 }
 
+// BigInt big int
 type BigInt big.Int
 
+// FromAmountBytes transfer bytes to bigint
 func FromAmountBytes(buf []byte) BigInt {
 	n := big.Int{}
 	n.SetBytes(buf)
 	return BigInt(n)
 }
 
+// MarshalJSON json.marshal
 func (b *BigInt) MarshalJSON() ([]byte, error) {
 	str := (*big.Int)(b).String()
 	return json.Marshal(str)
 }
 
-//精简了获取的交易数据，在获取状态的时候，尽可能的取消不必要的操作
+// FromPBTx get tx
 func FromPBTx(tx *pb.Transaction) *Transaction {
 	t := &Transaction{
-		Txid:      hex.EncodeToString(tx.Txid),
-		Timestamp: tx.Timestamp,
+		Txid:              tx.Txid,
+		Blockid:           tx.Blockid,
+		Nonce:             tx.Nonce,
+		Timestamp:         tx.Timestamp,
+		Version:           tx.Version,
+		Desc:              string(tx.Desc),
+		Autogen:           tx.Autogen,
+		Coinbase:          tx.Coinbase,
+		Initiator:         tx.Initiator,
+		ReceivedTimestamp: tx.ReceivedTimestamp,
+	}
+	for _, input := range tx.TxInputs {
+		t.TxInputs = append(t.TxInputs, TxInput{
+			RefTxid:   input.RefTxid,
+			RefOffset: input.RefOffset,
+			FromAddr:  string(input.FromAddr),
+			Amount:    FromAmountBytes(input.Amount),
+		})
+	}
+	for _, output := range tx.TxOutputs {
+		t.TxOutputs = append(t.TxOutputs, TxOutput{
+			Amount: FromAmountBytes(output.Amount),
+			ToAddr: string(output.ToAddr),
+		})
+	}
+	for _, inputExt := range tx.TxInputsExt {
+		t.TxInputsExt = append(t.TxInputsExt, TxInputExt{
+			Bucket:    inputExt.Bucket,
+			Key:       string(inputExt.Key),
+			RefTxid:   inputExt.RefTxid,
+			RefOffset: inputExt.RefOffset,
+		})
+	}
+	for _, outputExt := range tx.TxOutputsExt {
+		t.TxOutputsExt = append(t.TxOutputsExt, TxOutputExt{
+			Bucket: outputExt.Bucket,
+			Key:    string(outputExt.Key),
+			Value:  string(outputExt.Value),
+		})
+	}
+	if tx.ContractRequests != nil {
+		for i := 0; i < len(tx.ContractRequests); i++ {
+			req := tx.ContractRequests[i]
+			tmpReq := &InvokeRequest{
+				ModuleName:   req.ModuleName,
+				ContractName: req.ContractName,
+				MethodName:   req.MethodName,
+				Args:         map[string]string{},
+			}
+			for argKey, argV := range req.Args {
+				tmpReq.Args[argKey] = string(argV)
+			}
+			for _, rlimit := range req.ResourceLimits {
+				resource := ResourceLimit{
+					Type:  rlimit.Type.String(),
+					Limit: rlimit.Limit,
+				}
+				tmpReq.ResouceLimits = append(tmpReq.ResouceLimits, resource)
+			}
+			t.ContractRequests = append(t.ContractRequests, tmpReq)
+		}
+	}
+
+	t.AuthRequire = append(t.AuthRequire, tx.AuthRequire...)
+
+	for _, initsign := range tx.InitiatorSigns {
+		t.InitiatorSigns = append(t.InitiatorSigns, SignatureInfo{
+			PublicKey: initsign.PublicKey,
+			Sign:      initsign.Sign,
+		})
+	}
+
+	for _, authSign := range tx.AuthRequireSigns {
+		t.AuthRequireSigns = append(t.AuthRequireSigns, SignatureInfo{
+			PublicKey: authSign.PublicKey,
+			Sign:      authSign.Sign,
+		})
+	}
+
+	if tx.ModifyBlock != nil {
+		t.ModifyBlock = ModifyBlock{
+			EffectiveHeight: tx.ModifyBlock.EffectiveHeight,
+			Marked:          tx.ModifyBlock.Marked,
+			EffectiveTxid:   tx.ModifyBlock.EffectiveTxid,
+		}
 	}
 	return t
 }
 
+// InternalBlock proto.InternalBlock
 type InternalBlock struct {
-	Version      int32             `json:"version,omitempty"`
-	Blockid      string             `json:"blockid,omitempty"`
-	PreHash      string             `json:"preHash,omitempty"`
-	Proposer     string            `json:"proposer,omitempty"`
-	Sign         string             `json:"sign,omitempty"`
-	Pubkey       string            `json:"pubkey,omitempty"`
-	MerkleRoot   string             `json:"merkleRoot,omitempty"`
-	Height       int64             `json:"height,omitempty"`
-	Timestamp    int64             `json:"timestamp,omitempty"`
-	Transactions []*Transaction    `json:"transactions,omitempty"`
-	TxCount      int32             `json:"txCount,omitempty"`
-	MerkleTree   []string           `json:"merkleTree,omitempty"`
-	InTrunk      bool              `json:"inTrunk,omitempty"`
-	NextHash     string             `json:"nextHash,omitempty"`
-	FailedTxs    map[string]string `json:"failedTxs,omitempty"`
-	CurTerm      int64             `json:"curTerm,omitempty"`
-	CurBlockNum  int64             `json:"curBlockNum,omitempty"`
-	Justify      *QuorumCert       `json:"justify,omitempty"`
-	Nonce        int32             `json:"nonce,omitempty"`
-	TargetBits   int32             `json:"targetBits,omitempty"`
+	Version      int32             `json:"version"`
+	Blockid      HexID             `json:"blockid"`
+	PreHash      HexID             `json:"preHash"`
+	Proposer     string            `json:"proposer"`
+	Sign         HexID             `json:"sign"`
+	Pubkey       string            `json:"pubkey"`
+	MerkleRoot   HexID             `json:"merkleRoot"`
+	Height       int64             `json:"height"`
+	Timestamp    int64             `json:"timestamp"`
+	Transactions []*Transaction    `json:"transactions"`
+	TxCount      int32             `json:"txCount"`
+	MerkleTree   []HexID           `json:"merkleTree"`
+	InTrunk      bool              `json:"inTrunk"`
+	NextHash     HexID             `json:"nextHash"`
+	FailedTxs    map[string]string `json:"failedTxs"`
+	CurTerm      int64             `json:"curTerm"`
+	CurBlockNum  int64             `json:"curBlockNum"`
+	Justify      *QuorumCert       `json:"justify"`
 }
 
+// FromInternalBlockPB block info
 func FromInternalBlockPB(block *pb.InternalBlock) *InternalBlock {
 	iblock := &InternalBlock{
-		//Version:     block.Version,
-		Blockid:  hex.EncodeToString(block.Blockid),
-		PreHash:  hex.EncodeToString(block.PreHash),
-		Proposer: string(block.Proposer),
-		//Sign:        block.Sign,
-		//Pubkey:      string(block.Pubkey),
-		//MerkleRoot:  block.MerkleRoot,
-		Height:    block.Height,
-		Timestamp: block.Timestamp,
-		TxCount:   block.TxCount,
-		InTrunk:   block.InTrunk,
-		//NextHash:    block.NextHash,
-		//FailedTxs:   block.FailedTxs,
-		//CurTerm:     block.CurTerm,
-		//CurBlockNum: block.CurBlockNum,
-		Nonce:      block.Nonce,
-		TargetBits: block.TargetBits,
+		Version:     block.Version,
+		Blockid:     block.Blockid,
+		PreHash:     block.PreHash,
+		Proposer:    string(block.Proposer),
+		Sign:        block.Sign,
+		Pubkey:      string(block.Pubkey),
+		MerkleRoot:  block.MerkleRoot,
+		Height:      block.Height,
+		Timestamp:   block.Timestamp,
+		TxCount:     block.TxCount,
+		InTrunk:     block.InTrunk,
+		NextHash:    block.NextHash,
+		FailedTxs:   block.FailedTxs,
+		CurTerm:     block.CurTerm,
+		CurBlockNum: block.CurBlockNum,
 	}
-	//iblock.MerkleTree = make([]string, len(block.MerkleTree))
-	//for i := range block.MerkleTree {
-	//	iblock.MerkleTree[i] = block.MerkleTree[i]
-	//}
+	iblock.MerkleTree = make([]HexID, len(block.MerkleTree))
+	for i := range block.MerkleTree {
+		iblock.MerkleTree[i] = block.MerkleTree[i]
+	}
 	iblock.Transactions = make([]*Transaction, len(block.Transactions))
 	for i := range block.Transactions {
-		iblock.Transactions[i] = FullTx(block.Transactions[i])
+		iblock.Transactions[i] = FromPBTx(block.Transactions[i])
 	}
-	//iblock.Justify = FromPBJustify(block.Justify)
+	iblock.Justify = FromPBJustify(block.Justify)
 	return iblock
 }
 
+// FromPBJustify use pb.QuorumCert to construct local QuorumCert in block
 func FromPBJustify(qc *pb.QuorumCert) *QuorumCert {
 	justify := &QuorumCert{}
 	if qc != nil {
@@ -219,374 +331,439 @@ func FromPBJustify(qc *pb.QuorumCert) *QuorumCert {
 	return justify
 }
 
+// LedgerMeta proto.LedgerMeta
 type LedgerMeta struct {
-	RootBlockid string `json:"rootBlockid,omitempty"`
-	TipBlockid  string `json:"tipBlockid,omitempty"`
-	TrunkHeight int64 `json:"trunkHeight,omitempty"`
+	// RootBlockid root block id
+	RootBlockid HexID `json:"rootBlockid"`
+	// TipBlockid TipBlockid
+	TipBlockid HexID `json:"tipBlockid"`
+	// TrunkHeight TrunkHeight
+	TrunkHeight int64 `json:"trunkHeight"`
 }
 
+// UtxoMeta proto.UtxoMeta
 type UtxoMeta struct {
-	LatestBlockid            string           `json:"latestBlockid,omitempty"`
-	LockKeyList              []string        `json:"lockKeyList,omitempty"`
-	UtxoTotal                string          `json:"utxoTotal,omitempty"`
-	AvgDelay                 int64           `json:"avgDelay,omitempty"`
-	UnconfirmTxAmount        int64           `json:"unconfirmed,omitempty"`
-	MaxBlockSize             int64           `json:"maxBlockSize,omitempty"`
-	ReservedContracts        []InvokeRequest `json:"reservedContracts,omitempty"`
-	ForbiddenContract        InvokeRequest   `json:"forbiddenContract,omitempty"`
-	NewAccountResourceAmount int64           `json:"newAccountResourceAmount,omitempty"`
-	TransferFeeAmount        int64           `json:"transfer_fee_amount,omitempty"`
-	IrreversibleBlockHeight  int64           `json:"irreversibleBlockHeight,omitempty"`
-	IrreversibleSlideWindow  int64           `json:"irreversibleSlideWindow,omitempty"`
-	GasPrice                 GasPrice        `json:"gasPrice,omitempty"`
+	// LatestBlockid LatestBlockid
+	LatestBlockid HexID `json:"latestBlockid"`
+	// LockKeyList LockKeyList
+	LockKeyList []string `json:"lockKeyList"`
+	// UtxoTotal UtxoTotal
+	UtxoTotal string `json:"utxoTotal"`
+	// Average confirmed dealy (ms)
+	AvgDelay int64 `json:"avgDelay"`
+	// Current unconfirmed tx amount
+	UnconfirmTxAmount int64 `json:"unconfirmed"`
+	// MaxBlockSize MaxBlockSize
+	MaxBlockSize int64 `json:"maxBlockSize"`
+	// ReservedContracts ReservedContracts
+	ReservedContracts []InvokeRequest `json:"reservedContracts"`
+	// ForbiddenContract forbidden contract
+	ForbiddenContract InvokeRequest `json:"forbiddenContract"`
+	// NewAccountResourceAmount resource amount of creating an account
+	NewAccountResourceAmount int64 `json:"newAccountResourceAmount"`
+	// IrreversibleBlockHeight irreversible block height
+	IrreversibleBlockHeight int64 `json:"irreversibleBlockHeight"`
+	// IrreversibleSlideWindow irreversible slide window
+	IrreversibleSlideWindow int64 `json:"irreversibleSlideWindow"`
+	// GasPrice gas rate to utxo for different type resources
+	GasPrice GasPrice `json:"gasPrice"`
 }
 
+// ContractStatData proto.ContractStatData
 type ContractStatData struct {
-	AccountCount  int64 `json:"accountCount,omitempty"`
-	ContractCount int64 `json:"contractCount,omitempty"`
+	AccountCount  int64 `json:"accountCount"`
+	ContractCount int64 `json:"contractCount"`
 }
 
+// ChainStatus proto.ChainStatus
 type ChainStatus struct {
-	Name       string     `json:"name,omitempty"`
-	LedgerMeta LedgerMeta `json:"ledger,omitempty"`
-	//UtxoMeta      UtxoMeta       `json:"utxo,omitempty"`
-	//BranchBlockid []string       `json:"branchBlockid,omitempty"`
-	Block *InternalBlock `json:"block,omitempty"` //增加区块数据
+	Name       string     `json:"name"`
+	LedgerMeta LedgerMeta `json:"ledger"`
+	UtxoMeta   UtxoMeta   `json:"utxo"`
+	// add BranchBlockid
+	BranchBlockid []string `json:"branchBlockid"`
 }
 
+// SystemStatus proto.SystemStatus
 type SystemStatus struct {
-	ChainStatus []ChainStatus `json:"blockchains,omitempty"`
-	Peers       []string      `json:"peers,omitempty"`
-	//Speeds      *pb.Speeds    `json:"speeds,omitempty"`
+	ChainStatus []ChainStatus `json:"blockchains"`
+	Peers       []string      `json:"peers"`
+	Speeds      *pb.Speeds    `json:"speeds"`
 }
 
+// FromSystemStatusPB systemstatus info
 func FromSystemStatusPB(statuspb *pb.SystemsStatus) *SystemStatus {
 	status := &SystemStatus{}
 	for _, chain := range statuspb.GetBcsStatus() {
 		ledgerMeta := chain.GetMeta()
-		block := chain.GetBlock() //增加区块数据
-
-		//utxoMeta := chain.GetUtxoMeta()
-		//ReservedContracts := utxoMeta.GetReservedContracts()
-		//rcs := []InvokeRequest{}
-		//for _, rcpb := range ReservedContracts {
-		//	args := map[string]string{}
-		//	for k, v := range rcpb.GetArgs() {
-		//		args[k] = string(v)
-		//	}
-		//	rc := InvokeRequest{
-		//		ModuleName:   rcpb.GetModuleName(),
-		//		ContractName: rcpb.GetContractName(),
-		//		MethodName:   rcpb.GetMethodName(),
-		//		Args:         args,
-		//	}
-		//	rcs = append(rcs, rc)
-		//}
-		//forbiddenContract := utxoMeta.GetForbiddenContract()
-		//args := forbiddenContract.GetArgs()
-		//originalArgs := map[string]string{}
-		//for key, value := range args {
-		//	originalArgs[key] = string(value)
-		//}
-		//forbiddenContractMap := InvokeRequest{
-		//	ModuleName:   forbiddenContract.GetModuleName(),
-		//	ContractName: forbiddenContract.GetContractName(),
-		//	MethodName:   forbiddenContract.GetMethodName(),
-		//	Args:         originalArgs,
-		//}
-		//gasPricePB := utxoMeta.GetGasPrice()
-		//gasPrice := GasPrice{
-		//	CpuRate:  gasPricePB.GetCpuRate(),
-		//	MemRate:  gasPricePB.GetMemRate(),
-		//	DiskRate: gasPricePB.GetDiskRate(),
-		//	XfeeRate: gasPricePB.GetXfeeRate(),
-		//}
+		utxoMeta := chain.GetUtxoMeta()
+		ReservedContracts := utxoMeta.GetReservedContracts()
+		rcs := []InvokeRequest{}
+		for _, rcpb := range ReservedContracts {
+			args := map[string]string{}
+			for k, v := range rcpb.GetArgs() {
+				args[k] = string(v)
+			}
+			rc := InvokeRequest{
+				ModuleName:   rcpb.GetModuleName(),
+				ContractName: rcpb.GetContractName(),
+				MethodName:   rcpb.GetMethodName(),
+				Args:         args,
+			}
+			rcs = append(rcs, rc)
+		}
+		forbiddenContract := utxoMeta.GetForbiddenContract()
+		args := forbiddenContract.GetArgs()
+		originalArgs := map[string]string{}
+		for key, value := range args {
+			originalArgs[key] = string(value)
+		}
+		forbiddenContractMap := InvokeRequest{
+			ModuleName:   forbiddenContract.GetModuleName(),
+			ContractName: forbiddenContract.GetContractName(),
+			MethodName:   forbiddenContract.GetMethodName(),
+			Args:         originalArgs,
+		}
+		gasPricePB := utxoMeta.GetGasPrice()
+		gasPrice := GasPrice{
+			CpuRate:  gasPricePB.GetCpuRate(),
+			MemRate:  gasPricePB.GetMemRate(),
+			DiskRate: gasPricePB.GetDiskRate(),
+			XfeeRate: gasPricePB.GetXfeeRate(),
+		}
 		status.ChainStatus = append(status.ChainStatus, ChainStatus{
 			Name: chain.GetBcname(),
 			LedgerMeta: LedgerMeta{
-				RootBlockid: hex.EncodeToString(ledgerMeta.GetRootBlockid()),
-				TipBlockid:  hex.EncodeToString(ledgerMeta.GetTipBlockid()),
+				RootBlockid: ledgerMeta.GetRootBlockid(),
+				TipBlockid:  ledgerMeta.GetTipBlockid(),
 				TrunkHeight: ledgerMeta.GetTrunkHeight(),
 			},
-
-			//UtxoMeta: UtxoMeta{
-			//	LatestBlockid:            utxoMeta.GetLatestBlockid(),
-			//	LockKeyList:              utxoMeta.GetLockKeyList(),
-			//	UtxoTotal:                utxoMeta.GetUtxoTotal(),
-			//	AvgDelay:                 utxoMeta.GetAvgDelay(),
-			//	UnconfirmTxAmount:        utxoMeta.GetUnconfirmTxAmount(),
-			//	MaxBlockSize:             utxoMeta.GetMaxBlockSize(),
-			//	NewAccountResourceAmount: utxoMeta.GetNewAccountResourceAmount(),
-			//	TransferFeeAmount:        utxoMeta.GetTransferFeeAmount(),
-			//	ReservedContracts:        rcs,
-			//	ForbiddenContract:        forbiddenContractMap,
-			//	IrreversibleBlockHeight:  utxoMeta.GetIrreversibleBlockHeight(),
-			//	IrreversibleSlideWindow:  utxoMeta.GetIrreversibleSlideWindow(),
-			//	GasPrice:                 gasPrice,
-			//},
-
-			//BranchBlockid: chain.GetBranchBlockid(),
-			Block: FromInternalBlockPB(block),
+			UtxoMeta: UtxoMeta{
+				LatestBlockid:            utxoMeta.GetLatestBlockid(),
+				LockKeyList:              utxoMeta.GetLockKeyList(),
+				UtxoTotal:                utxoMeta.GetUtxoTotal(),
+				AvgDelay:                 utxoMeta.GetAvgDelay(),
+				UnconfirmTxAmount:        utxoMeta.GetUnconfirmTxAmount(),
+				MaxBlockSize:             utxoMeta.GetMaxBlockSize(),
+				NewAccountResourceAmount: utxoMeta.GetNewAccountResourceAmount(),
+				ReservedContracts:        rcs,
+				ForbiddenContract:        forbiddenContractMap,
+				// Irreversible block height & slide window
+				IrreversibleBlockHeight: utxoMeta.GetIrreversibleBlockHeight(),
+				IrreversibleSlideWindow: utxoMeta.GetIrreversibleSlideWindow(),
+				// add GasPrice value
+				GasPrice: gasPrice,
+			},
+			BranchBlockid: chain.GetBranchBlockid(),
 		})
 	}
 	status.Peers = statuspb.GetPeerUrls()
-	//status.Speeds = statuspb.GetSpeeds()
+	status.Speeds = statuspb.GetSpeeds()
 	return status
 }
 
+// TriggerDesc proto.TriggerDesc
 type TriggerDesc struct {
-	Module string      `json:"module,omitempty"`
-	Method string      `json:"method,omitempty"`
-	Args   interface{} `json:"args,omitempty"`
-	Height int64       `json:"height,omitempty"`
+	Module string      `json:"module"`
+	Method string      `json:"method"`
+	Args   interface{} `json:"args"`
+	Height int64       `json:"height"`
 }
 
+// ContractDesc proto.ContractDesc
 type ContractDesc struct {
-	Module  string      `json:"module,omitempty"`
-	Method  string      `json:"method,omitempty"`
-	Args    interface{} `json:"args,omitempty"`
-	Trigger TriggerDesc `json:"trigger,omitempty"`
+	Module  string      `json:"module"`
+	Method  string      `json:"method"`
+	Args    interface{} `json:"args"`
+	Trigger TriggerDesc `json:"trigger"`
 }
 
-func SimpleTx(tx *pb.Transaction) *Transaction {
-	t := &Transaction{
-		Txid:      hex.EncodeToString(tx.Txid),
-		Blockid:   hex.EncodeToString(tx.Blockid),
-		Timestamp: tx.Timestamp,
-		Initiator: tx.Initiator,
-		Coinbase:  tx.Coinbase,
-	}
-
-	for _, input := range tx.TxInputs {
-		t.TxInputs = append(t.TxInputs, TxInput{
-			RefTxid:   hex.EncodeToString(input.RefTxid),
-			RefOffset: input.RefOffset,
-			FromAddr:  string(input.FromAddr),
-			Amount:    big.NewInt(0).SetBytes(input.Amount).String(),
-		})
-	}
-
-	for _, output := range tx.TxOutputs {
-		//过滤
-		//to := string(output.ToAddr)
-		//if to == "$" || to == v.Initiator {
-		//	continue
-		//}
-
-		t.TxOutputs = append(t.TxOutputs, TxOutput{
-			Amount: big.NewInt(0).SetBytes(output.Amount).String(),
-			ToAddr: string(output.ToAddr),
-		})
-	}
-	return t
+// FilteredBlock pb.FilteredBlock
+type FilteredBlock struct {
+	Bcname      string                 `json:"bcname,omitempty"`
+	Blockid     string                 `json:"blockid,omitempty"`
+	BlockHeight int64                  `json:"block_height,omitempty"`
+	Txs         []*FilteredTransaction `json:"txs,omitempty"`
 }
 
-func SimpleTxs(txs []*pb.Transaction) []*Transaction {
-	tempTxs := []*Transaction{}
-	for _, tx := range txs {
-		t := &Transaction{
-			Txid:      hex.EncodeToString(tx.Txid),
-			Blockid:   hex.EncodeToString(tx.Blockid),
-			Timestamp: tx.Timestamp,
-			Initiator: tx.Initiator,
-			Coinbase:  tx.Coinbase,
+// FilteredTransaction pb.FilteredTransaction
+type FilteredTransaction struct {
+	Txid   string           `json:"txid,omitempty"`
+	Events []*ContractEvent `json:"events,omitempty"`
+}
+
+// ContractEvent pb.ContractEvent
+type ContractEvent struct {
+	Contract string `json:"contract,omitempty"`
+	Name     string `json:"name,omitempty"`
+	Body     string `json:"body,omitempty"`
+}
+
+// FromFilteredBlockPB convert pb.FilteredBlock to FilteredBlock
+func FromFilteredBlockPB(pbblock *pb.FilteredBlock) *FilteredBlock {
+	block := &FilteredBlock{
+		Bcname:      pbblock.Bcname,
+		Blockid:     pbblock.Blockid,
+		BlockHeight: pbblock.BlockHeight,
+		Txs:         make([]*FilteredTransaction, 0, len(pbblock.Txs)),
+	}
+
+	for _, pbtx := range pbblock.Txs {
+		tx := &FilteredTransaction{
+			Txid:   pbtx.Txid,
+			Events: make([]*ContractEvent, 0, len(pbtx.Events)),
 		}
-
-		for _, input := range tx.TxInputs {
-			t.TxInputs = append(t.TxInputs, TxInput{
-				RefTxid:   hex.EncodeToString(input.RefTxid),
-				RefOffset: input.RefOffset,
-				FromAddr:  string(input.FromAddr),
-				Amount:    big.NewInt(0).SetBytes(input.Amount).String(),
+		for _, pbevent := range pbtx.Events {
+			tx.Events = append(tx.Events, &ContractEvent{
+				Contract: pbevent.Contract,
+				Name:     pbevent.Name,
+				Body:     string(pbevent.Body),
 			})
 		}
-
-		for _, output := range tx.TxOutputs {
-			//过滤
-			//to := string(output.ToAddr)
-			//if to == "$" || to == v.Initiator {
-			//	continue
-			//}
-
-			t.TxOutputs = append(t.TxOutputs, TxOutput{
-				Amount: big.NewInt(0).SetBytes(output.Amount).String(),
-				ToAddr: string(output.ToAddr),
-			})
-		}
-		tempTxs = append(tempTxs, t)
+		block.Txs = append(block.Txs, tx)
 	}
-	return tempTxs
+	return block
 }
 
-func SimpleBlock(block *pb.InternalBlock) *InternalBlock {
-	iblock := &InternalBlock{
-		Blockid:   hex.EncodeToString(block.Blockid),
-		PreHash:   hex.EncodeToString(block.PreHash),
-		Proposer:  string(block.Proposer),
-		Height:    block.Height,
-		Timestamp: block.Timestamp,
-		TxCount:   block.TxCount,
-		InTrunk:   block.InTrunk,
-		FailedTxs: block.FailedTxs,
-	}
-	iblock.Transactions = make([]*Transaction, len(block.Transactions))
-	for i := range block.Transactions {
-		iblock.Transactions[i] = SimpleTx(block.Transactions[i])
-	}
-	return iblock
-}
+//func SimpleTx(tx *pb.Transaction) *Transaction {
+//	t := &Transaction{
+//		Txid:      hex.EncodeToString(tx.Txid),
+//		Blockid:   hex.EncodeToString(tx.Blockid),
+//		Timestamp: tx.Timestamp,
+//		Initiator: tx.Initiator,
+//		Coinbase:  tx.Coinbase,
+//	}
+//
+//	for _, input := range tx.TxInputs {
+//		t.TxInputs = append(t.TxInputs, TxInput{
+//			RefTxid:   hex.EncodeToString(input.RefTxid),
+//			RefOffset: input.RefOffset,
+//			FromAddr:  string(input.FromAddr),
+//			Amount:    big.NewInt(0).SetBytes(input.Amount).String(),
+//		})
+//	}
+//
+//	for _, output := range tx.TxOutputs {
+//		//过滤
+//		//to := string(output.ToAddr)
+//		//if to == "$" || to == v.Initiator {
+//		//	continue
+//		//}
+//
+//		t.TxOutputs = append(t.TxOutputs, TxOutput{
+//			Amount: big.NewInt(0).SetBytes(output.Amount).String(),
+//			ToAddr: string(output.ToAddr),
+//		})
+//	}
+//	return t
+//}
+//
+//func SimpleTxs(txs []*pb.Transaction) []*Transaction {
+//	tempTxs := []*Transaction{}
+//	for _, tx := range txs {
+//		t := &Transaction{
+//			Txid:      hex.EncodeToString(tx.Txid),
+//			Blockid:   hex.EncodeToString(tx.Blockid),
+//			Timestamp: tx.Timestamp,
+//			Initiator: tx.Initiator,
+//			Coinbase:  tx.Coinbase,
+//		}
+//
+//		for _, input := range tx.TxInputs {
+//			t.TxInputs = append(t.TxInputs, TxInput{
+//				RefTxid:   hex.EncodeToString(input.RefTxid),
+//				RefOffset: input.RefOffset,
+//				FromAddr:  string(input.FromAddr),
+//				Amount:    big.NewInt(0).SetBytes(input.Amount).String(),
+//			})
+//		}
+//
+//		for _, output := range tx.TxOutputs {
+//			//过滤
+//			//to := string(output.ToAddr)
+//			//if to == "$" || to == v.Initiator {
+//			//	continue
+//			//}
+//
+//			t.TxOutputs = append(t.TxOutputs, TxOutput{
+//				Amount: big.NewInt(0).SetBytes(output.Amount).String(),
+//				ToAddr: string(output.ToAddr),
+//			})
+//		}
+//		tempTxs = append(tempTxs, t)
+//	}
+//	return tempTxs
+//}
 
-func SimpleBlocks(blocks []*pb.InternalBlock) []*InternalBlock {
-	tempBlocks := []*InternalBlock{}
-	for _, v := range blocks {
-		block := &InternalBlock{
-			Height:       v.Height,
-			Blockid:      hex.EncodeToString(v.Blockid),
-			Timestamp:    v.Timestamp,
-			Proposer:     string(v.Proposer),
-			PreHash:      hex.EncodeToString(v.PreHash),
-			Transactions: SimpleTxs(v.Transactions),
-			TxCount:      v.TxCount,
-			InTrunk:      v.InTrunk,
-		}
-		tempBlocks = append(tempBlocks, block)
-	}
-	return tempBlocks
-}
+//func SimpleBlock(block *pb.InternalBlock) *InternalBlock {
+//	iblock := &InternalBlock{
+//		Blockid:   hex.EncodeToString(block.Blockid),
+//		PreHash:   hex.EncodeToString(block.PreHash),
+//		Proposer:  string(block.Proposer),
+//		Height:    block.Height,
+//		Timestamp: block.Timestamp,
+//		TxCount:   block.TxCount,
+//		InTrunk:   block.InTrunk,
+//		FailedTxs: block.FailedTxs,
+//	}
+//	iblock.Transactions = make([]*Transaction, len(block.Transactions))
+//	for i := range block.Transactions {
+//		iblock.Transactions[i] = SimpleTx(block.Transactions[i])
+//	}
+//	return iblock
+//}
+//
+//func SimpleBlocks(blocks []*pb.InternalBlock) []*InternalBlock {
+//	tempBlocks := []*InternalBlock{}
+//	for _, v := range blocks {
+//		block := &InternalBlock{
+//			Height:       v.Height,
+//			Blockid:      hex.EncodeToString(v.Blockid),
+//			Timestamp:    v.Timestamp,
+//			Proposer:     string(v.Proposer),
+//			PreHash:      hex.EncodeToString(v.PreHash),
+//			Transactions: SimpleTxs(v.Transactions),
+//			TxCount:      v.TxCount,
+//			InTrunk:      v.InTrunk,
+//		}
+//		tempBlocks = append(tempBlocks, block)
+//	}
+//	return tempBlocks
+//}
 
-func FullTx(tx *pb.Transaction) *Transaction {
-	t := &Transaction{
-		Txid:              hex.EncodeToString(tx.Txid),
-		Blockid:           hex.EncodeToString(tx.Blockid),
-		Nonce:             tx.Nonce,
-		Timestamp:         tx.Timestamp,
-		Version:           tx.Version,
-		Desc:              string(tx.Desc),
-		Autogen:           tx.Autogen,
-		Coinbase:          tx.Coinbase,
-		//VoteCoinbase:      tx.VoteCoinbase,
-		Initiator:         tx.Initiator,
-		ReceivedTimestamp: tx.ReceivedTimestamp,
-	}
-	for _, input := range tx.TxInputs {
-		t.TxInputs = append(t.TxInputs, TxInput{
-			RefTxid:   hex.EncodeToString(input.RefTxid),
-			RefOffset: input.RefOffset,
-			FromAddr:  string(input.FromAddr),
-			Amount:    big.NewInt(0).SetBytes(input.Amount).String(),
-		})
-	}
-	for _, output := range tx.TxOutputs {
-		t.TxOutputs = append(t.TxOutputs, TxOutput{
-			Amount: big.NewInt(0).SetBytes(output.Amount).String(),
-			ToAddr: string(output.ToAddr),
-		})
-	}
-	for _, inputExt := range tx.TxInputsExt {
-		t.TxInputsExt = append(t.TxInputsExt, TxInputExt{
-			Bucket:    inputExt.Bucket,
-			Key:       string(inputExt.Key),
-			RefTxid:   hex.EncodeToString(inputExt.RefTxid),
-			RefOffset: inputExt.RefOffset,
-		})
-	}
-	for _, outputExt := range tx.TxOutputsExt {
-		v := string(outputExt.Value)
-		if len(v) > 250 {
-			v = "value too long"
-		}
-		t.TxOutputsExt = append(t.TxOutputsExt, TxOutputExt{
-			Bucket: outputExt.Bucket,
-			Key:    string(outputExt.Key),
-			Value:  v,
-		})
-	}
-	if tx.ContractRequests != nil {
-		for i := 0; i < len(tx.ContractRequests); i++ {
-			req := tx.ContractRequests[i]
-			tmpReq := &InvokeRequest{
-				ModuleName:   req.ModuleName,
-				ContractName: req.ContractName,
-				MethodName:   req.MethodName,
-				Args:         map[string]string{},
-			}
-			for argKey, argV := range req.Args {
-				v := string(argV)
-				if len(argV) > 250 {
-					v = "value too long"
-				}
-				tmpReq.Args[argKey] = v
-			}
-			for _, rlimit := range req.ResourceLimits {
-				resource := ResourceLimit{
-					Type:  rlimit.Type.String(),
-					Limit: rlimit.Limit,
-				}
-				tmpReq.ResouceLimits = append(tmpReq.ResouceLimits, resource)
-			}
-			t.ContractRequests = append(t.ContractRequests, tmpReq)
-		}
-	}
+//func FullTx(tx *pb.Transaction) *Transaction {
+//	t := &Transaction{
+//		Txid:              hex.EncodeToString(tx.Txid),
+//		Blockid:           hex.EncodeToString(tx.Blockid),
+//		Nonce:             tx.Nonce,
+//		Timestamp:         tx.Timestamp,
+//		Version:           tx.Version,
+//		Desc:              string(tx.Desc),
+//		Autogen:           tx.Autogen,
+//		Coinbase:          tx.Coinbase,
+//		//VoteCoinbase:      tx.VoteCoinbase,
+//		Initiator:         tx.Initiator,
+//		ReceivedTimestamp: tx.ReceivedTimestamp,
+//	}
+//	for _, input := range tx.TxInputs {
+//		t.TxInputs = append(t.TxInputs, TxInput{
+//			RefTxid:   hex.EncodeToString(input.RefTxid),
+//			RefOffset: input.RefOffset,
+//			FromAddr:  string(input.FromAddr),
+//			Amount:    big.NewInt(0).SetBytes(input.Amount).String(),
+//		})
+//	}
+//	for _, output := range tx.TxOutputs {
+//		t.TxOutputs = append(t.TxOutputs, TxOutput{
+//			Amount: big.NewInt(0).SetBytes(output.Amount).String(),
+//			ToAddr: string(output.ToAddr),
+//		})
+//	}
+//	for _, inputExt := range tx.TxInputsExt {
+//		t.TxInputsExt = append(t.TxInputsExt, TxInputExt{
+//			Bucket:    inputExt.Bucket,
+//			Key:       string(inputExt.Key),
+//			RefTxid:   hex.EncodeToString(inputExt.RefTxid),
+//			RefOffset: inputExt.RefOffset,
+//		})
+//	}
+//	for _, outputExt := range tx.TxOutputsExt {
+//		v := string(outputExt.Value)
+//		if len(v) > 250 {
+//			v = "value too long"
+//		}
+//		t.TxOutputsExt = append(t.TxOutputsExt, TxOutputExt{
+//			Bucket: outputExt.Bucket,
+//			Key:    string(outputExt.Key),
+//			Value:  v,
+//		})
+//	}
+//	if tx.ContractRequests != nil {
+//		for i := 0; i < len(tx.ContractRequests); i++ {
+//			req := tx.ContractRequests[i]
+//			tmpReq := &InvokeRequest{
+//				ModuleName:   req.ModuleName,
+//				ContractName: req.ContractName,
+//				MethodName:   req.MethodName,
+//				Args:         map[string]string{},
+//			}
+//			for argKey, argV := range req.Args {
+//				v := string(argV)
+//				if len(argV) > 250 {
+//					v = "value too long"
+//				}
+//				tmpReq.Args[argKey] = v
+//			}
+//			for _, rlimit := range req.ResourceLimits {
+//				resource := ResourceLimit{
+//					Type:  rlimit.Type.String(),
+//					Limit: rlimit.Limit,
+//				}
+//				tmpReq.ResouceLimits = append(tmpReq.ResouceLimits, resource)
+//			}
+//			t.ContractRequests = append(t.ContractRequests, tmpReq)
+//		}
+//	}
+//
+//	t.AuthRequire = append(t.AuthRequire, tx.AuthRequire...)
+//
+//	for _, initsign := range tx.InitiatorSigns {
+//		t.InitiatorSigns = append(t.InitiatorSigns, SignatureInfo{
+//			PublicKey: initsign.PublicKey,
+//			Sign:      hex.EncodeToString(initsign.Sign),
+//		})
+//	}
+//
+//	for _, authSign := range tx.AuthRequireSigns {
+//		t.AuthRequireSigns = append(t.AuthRequireSigns, SignatureInfo{
+//			PublicKey: authSign.PublicKey,
+//			Sign:      hex.EncodeToString(authSign.Sign),
+//		})
+//	}
+//
+//	//if tx.ModifyBlock != nil {
+//	//	t.ModifyBlock = ModifyBlock{
+//	//		EffectiveHeight: tx.ModifyBlock.EffectiveHeight,
+//	//		Marked:          tx.ModifyBlock.Marked,
+//	//		EffectiveTxid:   tx.ModifyBlock.EffectiveTxid,
+//	//	}
+//	//}
+//	return t
+//}
 
-	t.AuthRequire = append(t.AuthRequire, tx.AuthRequire...)
+//func SumHash(tx *pb.Transaction) error {
+//	j, err := json.Marshal(tx)
+//	if err != nil {
+//		return err
+//	}
+//	fmt.Println("md5:", md5.Sum(j))
+//	fmt.Println("sha1:", sha1.Sum(j))
+//	fmt.Println("sha256:", sha256.Sum256(j))
+//
+//	txid, err := common.MakeTxId(tx)
+//	if err != nil {
+//		return err
+//	}
+//	fmt.Println("txid:", hex.EncodeToString(txid))
+//	return nil
+//}
 
-	for _, initsign := range tx.InitiatorSigns {
-		t.InitiatorSigns = append(t.InitiatorSigns, SignatureInfo{
-			PublicKey: initsign.PublicKey,
-			Sign:      hex.EncodeToString(initsign.Sign),
-		})
-	}
+//func PrintTx(tx *pb.Transaction) error {
+//	// print tx
+//	t := FullTx(tx)
+//	output, err := json.MarshalIndent(t, "", "  ")
+//	if err != nil {
+//		return err
+//	}
+//	fmt.Println(string(output))
+//	return nil
+//}
 
-	for _, authSign := range tx.AuthRequireSigns {
-		t.AuthRequireSigns = append(t.AuthRequireSigns, SignatureInfo{
-			PublicKey: authSign.PublicKey,
-			Sign:      hex.EncodeToString(authSign.Sign),
-		})
-	}
-
-	//if tx.ModifyBlock != nil {
-	//	t.ModifyBlock = ModifyBlock{
-	//		EffectiveHeight: tx.ModifyBlock.EffectiveHeight,
-	//		Marked:          tx.ModifyBlock.Marked,
-	//		EffectiveTxid:   tx.ModifyBlock.EffectiveTxid,
-	//	}
-	//}
-	return t
-}
-
-func SumHash(tx *pb.Transaction) error {
-	j, err := json.Marshal(tx)
-	if err != nil {
-		return err
-	}
-	fmt.Println("md5:", md5.Sum(j))
-	fmt.Println("sha1:", sha1.Sum(j))
-	fmt.Println("sha256:", sha256.Sum256(j))
-
-	txid, err := common.MakeTxId(tx)
-	if err != nil {
-		return err
-	}
-	fmt.Println("txid:", hex.EncodeToString(txid))
-	return nil
-}
-
-func PrintTx(tx *pb.Transaction) error {
-	// print tx
-	t := FullTx(tx)
-	output, err := json.MarshalIndent(t, "", "  ")
-	if err != nil {
-		return err
-	}
-	fmt.Println(string(output))
-	return nil
-}
-
-func PrintBlock(block *pb.InternalBlock) {
-	iblock := FromInternalBlockPB(block)
-	output, err := json.MarshalIndent(iblock, "", "  ")
-	if err != nil {
-		fmt.Println(err)
-	}
-	fmt.Println(string(output))
-}
+//func PrintBlock(block *pb.InternalBlock) {
+//	iblock := FromInternalBlockPB(block)
+//	output, err := json.MarshalIndent(iblock, "", "  ")
+//	if err != nil {
+//		fmt.Println(err)
+//	}
+//	fmt.Println(string(output))
+//}

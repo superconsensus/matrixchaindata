@@ -1,13 +1,15 @@
 package chain_server
 
-
 /// 从链上拿到数据
 import (
 	"context"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"github.com/xuperchain/xuperchain/service/pb"
 	"google.golang.org/grpc"
+	"matrixchaindata/utils"
+
 	//"net/http"
 	"time"
 )
@@ -37,8 +39,7 @@ func GetUtxoTotalAndTrunkHeight(node, bcname string) (string, int64, error) {
 
 	client := pb.NewXchainClient(conn)
 
-
-	//查询单条链
+	//查询单条链状态信息
 	bcStatusPB := &pb.BCStatus{Bcname: bcname}
 	bcStatus, err := client.GetBlockChainStatus(ctx, bcStatusPB)
 	if err != nil {
@@ -99,6 +100,87 @@ func GetBlockByHeight(node, bcname string, height int64) (*pb.InternalBlock, err
 	return reply.Block, nil
 }
 
+func GetBlockListByHeight(node, bcname string, height, num int64) ([]*utils.InternalBlock, error) {
+	conn, err := grpc.Dial(node, grpc.WithInsecure(), grpc.WithMaxMsgSize(64<<20-1))
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15000*time.Millisecond)
+	defer cancel()
+
+	client := pb.NewXchainClient(conn)
+	// 获取指定数量的区块信息 [)
+	blocklist := make([]*utils.InternalBlock, 0)
+	var i int64
+	for i = 0; i < num; i++ {
+		blockHeightPB := &pb.BlockHeight{
+			Bcname: bcname,
+			Height: height + i,
+		}
+		reply, err := client.GetBlockByHeight(ctx, blockHeightPB)
+		if err != nil {
+			continue
+		}
+		if reply == nil {
+			continue
+		}
+		if reply.Header.Error != pb.XChainErrorEnum_SUCCESS {
+			continue
+		}
+		if reply.Block == nil {
+			continue
+		}
+		blocklist = append(blocklist, utils.FromInternalBlockPB(reply.Block))
+	}
+	if len(blocklist) == 0 {
+		return nil, fmt.Errorf("get block error")
+	}
+	return blocklist, nil
+}
+
+// 根据blockid 获取区块id
+// args:
+//      - node 节点地址
+//      - bcname 链名字
+//      - blockid 高度
+func GetBlockById(node, bcname, blockid string) (*pb.InternalBlock, error) {
+	block_hash, err := hex.DecodeString(blockid)
+	if err != nil {
+		return nil, err
+	}
+	conn, err := grpc.Dial(node, grpc.WithInsecure(), grpc.WithMaxMsgSize(64<<20-1))
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15000*time.Millisecond)
+	defer cancel()
+
+	client := pb.NewXchainClient(conn)
+	blockidPB := &pb.BlockID{
+		Bcname:      bcname,
+		Blockid:     block_hash,
+		NeedContent: true,
+	}
+	block, err := client.GetBlock(ctx, blockidPB)
+	if err != nil {
+		return nil, err
+	}
+	if block == nil {
+		return nil, errors.New("GetBlockByHeight: the reply is null")
+	}
+	if block.Header.Error != pb.XChainErrorEnum_SUCCESS {
+		return nil, errors.New("GetBlockByHeight: Header.Error is fail")
+	}
+	if block.Block == nil {
+		return nil, errors.New("GetBlockByHeight: the block is null")
+	}
+	return block.Block, nil
+}
+
 // 根据交易id查询交易
 // args:
 //      - node 节点地址
@@ -146,8 +228,7 @@ func GetTxByTxId(node, bcname string, txid string) (*pb.Transaction, error) {
 	return reply.Tx, nil
 }
 
-// 查询链
-// 返回
+// 查询链的数量
 func QueryBlockChains(node string) ([]string, error) {
 	conn, err := grpc.Dial(node, grpc.WithInsecure(), grpc.WithMaxMsgSize(64<<20-1))
 	if err != nil {
@@ -169,4 +250,54 @@ func QueryBlockChains(node string) ([]string, error) {
 	}
 
 	return bcs.GetBlockchains(), nil
+}
+
+// 地址相关合约
+func QueryAddressContracts(node, bcname, address string) map[string]*pb.ContractList {
+	conn, err := grpc.Dial(node, grpc.WithInsecure(), grpc.WithMaxMsgSize(64<<20-1))
+	if err != nil {
+		return nil
+	}
+	defer conn.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15000*time.Millisecond)
+	defer cancel()
+
+	client := pb.NewXchainClient(conn)
+
+	req := &pb.AddressContractsRequest{
+		Bcname:      bcname,
+		Address:     address,
+		NeedContent: true,
+	}
+	res, err := client.GetAddressContracts(ctx, req)
+	if err != nil {
+		return nil
+	}
+	return res.GetContracts()
+}
+
+// 合约账号相关合约
+func QueryAccountContracts(node, bcname, account string) []*pb.ContractStatus {
+	conn, err := grpc.Dial(node, grpc.WithInsecure(), grpc.WithMaxMsgSize(64<<20-1))
+	if err != nil {
+		return nil
+	}
+	defer conn.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15000*time.Millisecond)
+	defer cancel()
+
+	client := pb.NewXchainClient(conn)
+
+	req := &pb.GetAccountContractsRequest{
+		Bcname:  bcname,
+		Account: account,
+	}
+
+	res, err := client.GetAccountContracts(ctx, req)
+	if err != nil {
+		return nil
+	}
+	return res.GetContractsStatus()
 }

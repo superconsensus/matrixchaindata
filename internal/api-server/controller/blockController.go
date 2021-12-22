@@ -30,7 +30,8 @@ func (b *BlockController) GetBlock(c *gin.Context) {
 	}
 	height, _ := strconv.ParseInt(params.Height, 10, 64)
 	// 调用service获取数据
-	data, err := service.NewSever().GetBlock(params.BlockId, height, params.Bcname)
+	// 直接去链上查询
+	blockdata, err := service.NewSever().GetBlockFormChain(params.BlockId, height, params.Bcname)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"msg": "error",
@@ -39,7 +40,7 @@ func (b *BlockController) GetBlock(c *gin.Context) {
 	//c.JSON(http.StatusOK, gin.H{
 	//	"data": data,
 	//})
-	c.JSON(http.StatusOK, &data)
+	c.JSON(http.StatusOK, blockdata)
 }
 
 // 根据链的名字获取区块高度
@@ -55,7 +56,7 @@ func (b *BlockController) GetBlockCount(c *gin.Context) {
 		return
 	}
 	// 调用server获取数据
-	height, err := service.NewSever().GetBlockCount(params.Bcname)
+	height, err := service.NewSever().GetBlockCountFromeChain(params.Bcname)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": err,
@@ -84,10 +85,10 @@ func (b *BlockController) GetBlockList(c *gin.Context) {
 	height, _ := strconv.ParseInt(params.BlockHeight, 10, 64)
 	num, _ := strconv.ParseInt(params.Num, 10, 64)
 	// 获取数据
-	data, err := service.NewSever().GetBockekList(height, num, params.Bcname)
+	blocklist, err := service.NewSever().GetBockekListFromChain(height, num, params.Bcname)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"err": err})
 		return
 	}
-	c.JSON(http.StatusOK, &data)
+	c.JSON(http.StatusOK, blocklist)
 }

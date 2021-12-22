@@ -13,6 +13,7 @@ func InitRouter(gin *gin.Engine) {
 
 	/// count 统计信息
 
+	// 如果可以链上查询尽量链上查询
 	///// 区块路由组
 	blockGroup := gin.Group("/api/block")
 	{
@@ -35,9 +36,13 @@ func InitRouter(gin *gin.Engine) {
 		txGroup.POST("/get_tx_amount", tx.GetTxAmount)
 		//// 获取交易列表
 		txGroup.POST("/get_tx_list", tx.GetTxList)
+
 		// 合约相关
-		//// 根据地址获取交易信息
-		//txGroup.POST("/get_txlist_by_addr")
+		// 根据合约账号/地址 获取部署的合约数量
+		txGroup.POST("/get_contract_list", tx.GetContractList)
+		// 根据合约名 查出相关的交易
+		txGroup.POST("/get_contract_txs", tx.GetContractTxs)
+
 	}
 
 	/// account 账号信息相关

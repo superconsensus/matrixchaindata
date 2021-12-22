@@ -2,6 +2,7 @@ package scan_server
 
 import (
 	"fmt"
+	"go.mongodb.org/mongo-driver/bson"
 	"log"
 	"matrixchaindata/global"
 	chain_server "matrixchaindata/internal/chain-server"
@@ -56,4 +57,25 @@ func Test_Scan(t *testing.T) {
 		}
 	}()
 	time.Sleep(120 * time.Second)
+}
+
+func TestWriteDB_IsHandle(t *testing.T) {
+	dbSource := "mongodb://admin:admin@192.168.199.128:27017"
+	database := "boxi"
+	//node := "120.79.69.94:37102"
+	bcname := "xuper"
+	block_id := 1440092
+
+	dbClient, err := global.NewMongoClient(dbSource, database)
+	if err != nil {
+		fmt.Println("create db clien error")
+	}
+	blockCol := dbClient.Database.Collection(fmt.Sprintf("block_%s", bcname))
+
+	data := blockCol.FindOne(nil, bson.D{{"_id", block_id}})
+	if data.Err() != nil {
+		fmt.Println(data.Err())
+	} else {
+		fmt.Println("has data")
+	}
 }

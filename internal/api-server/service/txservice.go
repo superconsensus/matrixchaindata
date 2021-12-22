@@ -69,3 +69,24 @@ func (s *Serve) GetTxList(bcname, addr string, opt int64) ([]bson.M, error) {
 		return nil, fmt.Errorf("typer error")
 	}
 }
+
+// 获取合约相关的交易
+func (s *Serve) GetContractTxs(bcname, contractname string) ([]bson.M, error) {
+
+	opts := options.Find().SetSort(bson.D{
+		{"tx. Timestamp", -1},
+	})
+	cursur, err := s.Dao.MongoClient.Collection(utils.TxCol(bcname)).Find(
+		nil,
+		bson.D{
+			{"tx.contractrequests.0.contractName", contractname},
+		},
+		opts)
+
+	if err != nil {
+		return nil, err
+	}
+	var result []bson.M
+	_ = cursur.All(nil, &result)
+	return result, nil
+}

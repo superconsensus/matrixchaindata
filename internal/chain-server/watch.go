@@ -38,7 +38,8 @@ func WatchBlockEvent(bcname string, conn *grpc.ClientConn) (*Watcher, error) {
 	}
 
 	// 创建管道，用于存放监听到的区块数据
-	filteredBlockChan := make(chan *pb.InternalBlock,20)
+	// 管道大小
+	filteredBlockChan := make(chan *pb.InternalBlock, 50)
 	exit := make(chan struct{})
 	watcher.Exit = exit
 	watcher.FilteredBlockChan = filteredBlockChan
@@ -55,6 +56,7 @@ func WatchBlockEvent(bcname string, conn *grpc.ClientConn) (*Watcher, error) {
 		for {
 			select {
 			case <-exit:
+				log.Println("stop watch")
 				return
 			default:
 				event, err := stream.Recv()

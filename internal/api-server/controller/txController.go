@@ -122,3 +122,58 @@ func (t *TxController) GetTxList(c *gin.Context) {
 	c.JSON(http.StatusOK, &data)
 	return
 }
+
+type GetContListReq struct {
+	ContractAccount string `json:"contractaccount"`
+	Address         string `json:"address"`
+	Bcname          string `json:"bcname"`
+}
+
+// 根据合约账号获取部署的合约
+func (t *TxController) GetContractList(c *gin.Context) {
+	params := &GetContListReq{}
+	err := c.ShouldBindJSON(params)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err,
+		})
+		return
+	}
+	// 调用链服务直接查询
+	if params.Address != "" {
+		data := chain_server.QueryAddressContracts(settings.Setting.Node, params.Bcname, params.Address)
+		c.JSON(http.StatusOK, data)
+	} else if params.ContractAccount != "" {
+		data := chain_server.QueryAccountContracts(settings.Setting.Node, params.Bcname, params.ContractAccount)
+		c.JSON(http.StatusOK, data)
+	} else {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "check params",
+		})
+	}
+}
+
+// 根据合约名字查出相关的交易
+type ContractTxs struct {
+	Bcname       string `json:"bcname"`
+	ContractName string `json:"contractname"`
+}
+
+func (t *TxController) GetContractTxs(c *gin.Context) {
+	params := &ContractTxs{}
+	err := c.ShouldBindJSON(params)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err,
+		})
+		return
+	}
+	data, err := service.NewSever().GetContractTxs(params.Bcname, params.ContractName)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": err,
+		})
+		return
+	}
+	c.JSON(http.StatusOK, &data)
+}
