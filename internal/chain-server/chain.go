@@ -14,10 +14,58 @@ import (
 	"time"
 )
 
-//var (
-//	node   = ":37101"
-//	bcname = "xuper"
-//)
+// 链客户端
+type ChainClient struct {
+	conn *grpc.ClientConn
+	xc   pb.XchainClient
+}
+
+// 创建链客户端
+func NewChainClien(node string) (*ChainClient, error) {
+	conn, err := grpc.Dial(node, grpc.WithInsecure(), grpc.WithMaxMsgSize(64<<20-1))
+	if err != nil {
+		return nil, err
+	}
+	return &ChainClient{
+		conn: conn,
+		xc:   pb.NewXchainClient(conn),
+	}, nil
+}
+
+// 关闭
+func (c *ChainClient) Close() error {
+	if c.xc != nil && c.conn != nil {
+		err := c.conn.Close()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// 获取区块by高度
+func (c *ChainClient) GetBlockByHeight(bcname string, height int64) (*pb.InternalBlock, error) {
+
+	blockHeightPB := &pb.BlockHeight{
+		Bcname: bcname,
+		Height: height,
+	}
+	reply, err := c.xc.GetBlockByHeight(context.TODO(), blockHeightPB)
+	if err != nil {
+		return nil, err
+	}
+	if reply == nil {
+		return nil, errors.New("GetBlockByHeight: the reply is null")
+	}
+	if reply.Header.Error != pb.XChainErrorEnum_SUCCESS {
+		return nil, errors.New("GetBlockByHeight: Header.Error is fail")
+	}
+	if reply.Block == nil {
+		return nil, errors.New("GetBlockByHeight: the block is null")
+	}
+	return reply.Block, nil
+
+}
 
 // 获取utxo总量和高度
 // args:

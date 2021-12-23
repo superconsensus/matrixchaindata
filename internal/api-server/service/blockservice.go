@@ -5,7 +5,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	chain_server "matrixchaindata/internal/chain-server"
-	"matrixchaindata/settings"
 	"matrixchaindata/utils"
 )
 
@@ -15,20 +14,20 @@ import (
 // -----------------------------------------------------------------------------
 // 根据区块hash, 或者是高度查早到区块信息
 // 直接去链上拿
-func (s *Serve) GetBlockFormChain(block_hash string, block_height int64, bcname string) (*utils.InternalBlock, error) {
+func (s *Serve) GetBlockFormChain(node, bcname, block_hash string, block_height int64) (*utils.InternalBlock, error) {
 
 	// hash or id
 	if block_hash == "" {
 		// 根据高度获取
 		// node 直接配置读取
-		block, err := chain_server.GetBlockByHeight(settings.Setting.Node, bcname, block_height)
+		block, err := chain_server.GetBlockByHeight(node, bcname, block_height)
 		if err != nil {
 			return nil, err
 		}
 		return utils.FromInternalBlockPB(block), nil
 	}
 	// 根据hash获取
-	block, err := chain_server.GetBlockById(settings.Setting.Node, bcname, block_hash)
+	block, err := chain_server.GetBlockById(node, bcname, block_hash)
 	if err != nil {
 		return nil, err
 	}
@@ -37,9 +36,9 @@ func (s *Serve) GetBlockFormChain(block_hash string, block_height int64, bcname 
 }
 
 // 从数据库拿到数据
-func (s *Serve) GetBlockFromDB(block_hash string, block_height int64, bcname string) (bson.M, error) {
+func (s *Serve) GetBlockFromDB(block_hash string, block_height int64, node, bcname string) (bson.M, error) {
 	elem := bson.M{}
-	err := s.Dao.MongoClient.Collection(utils.BlockCol(bcname)).FindOne(
+	err := s.Dao.MongoClient.Collection(utils.BlockCol(node, bcname)).FindOne(
 		nil,
 		bson.D{{"$or", bson.A{
 			bson.D{{"blockid", block_hash}},
@@ -57,8 +56,8 @@ func (s *Serve) GetBlockFromDB(block_hash string, block_height int64, bcname str
 //                            (1 链上  2 数据库)
 // -----------------------------------------------------------------------------
 // 从链上拿数据
-func (s *Serve) GetBlockCountFromeChain(bcname string) (int64, error) {
-	_, height, err := chain_server.GetUtxoTotalAndTrunkHeight(settings.Setting.Node, bcname)
+func (s *Serve) GetBlockCountFromeChain(node, bcname string) (int64, error) {
+	_, height, err := chain_server.GetUtxoTotalAndTrunkHeight(node, bcname)
 	if err != nil {
 		return 0, err
 	}
@@ -67,7 +66,7 @@ func (s *Serve) GetBlockCountFromeChain(bcname string) (int64, error) {
 
 // 重数据库拿到数据
 // 链的区块高度（当前链出了多少个块）
-func (s *Serve) GetBlockCountFromDB(bcname string) (int64, error) {
+func (s *Serve) GetBlockCountFromDB(node, bcname string) (int64, error) {
 
 	//cursor, err := s.Dao.MongoClient.Collection(utils.BlockCol(bcname)).Find(nil,bson.D{})
 	//if err != nil {
@@ -75,7 +74,7 @@ func (s *Serve) GetBlockCountFromDB(bcname string) (int64, error) {
 	//}
 	//result := []bson.M{}
 	//cursor.All(nil,&result)
-	return s.Dao.MongoClient.Collection(utils.BlockCol(bcname)).CountDocuments(nil, bson.D{}, options.Count())
+	return s.Dao.MongoClient.Collection(utils.BlockCol(node, bcname)).CountDocuments(nil, bson.D{}, options.Count())
 	//return int64(len(result)), nil
 }
 
@@ -85,16 +84,16 @@ func (s *Serve) GetBlockCountFromDB(bcname string) (int64, error) {
 // -----------------------------------------------------------------------------
 // 从链上拿到数据
 // 以高度作为开始下标获取指定条数的区块信息
-func (s *Serve) GetBockekListFromChain(height int64, num int64, bcname string) ([]*utils.InternalBlock, error) {
+func (s *Serve) GetBockekListFromChain(node, bcname string, height, num int64) ([]*utils.InternalBlock, error) {
 	// 校验高度
-	_, blockheight, err := chain_server.GetUtxoTotalAndTrunkHeight(settings.Setting.Node, bcname)
+	_, blockheight, err := chain_server.GetUtxoTotalAndTrunkHeight(node, bcname)
 	if err != nil {
 		return nil, fmt.Errorf("get block error")
 	}
 	if blockheight < height+num {
 		return nil, fmt.Errorf(" height error,check it")
 	}
-	list, err := chain_server.GetBlockListByHeight(settings.Setting.Node, bcname, height, num)
+	list, err := chain_server.GetBlockListByHeight(node, bcname, height, num)
 	if err != nil {
 		return nil, err
 	}
@@ -104,12 +103,12 @@ func (s *Serve) GetBockekListFromChain(height int64, num int64, bcname string) (
 // 获取列表
 // 获取区块列表
 // 以高度作为开始下标获取指定条数的区块信息
-func (s *Serve) GetBockekListFromDB(height int64, num int64, bcname string) ([]bson.M, error) {
+func (s *Serve) GetBockekListFromDB(height int64, num int64, node, bcname string) ([]bson.M, error) {
 	opts := options.Find()
 	opts.SetSort(bson.D{{"_id", 1}})
 	opts.SetLimit(num)
 
-	cursor, err := s.Dao.MongoClient.Collection(utils.BlockCol(bcname)).Find(
+	cursor, err := s.Dao.MongoClient.Collection(utils.BlockCol(node, bcname)).Find(
 		nil,
 		bson.M{"_id": bson.M{"$gte": height}},
 		opts)

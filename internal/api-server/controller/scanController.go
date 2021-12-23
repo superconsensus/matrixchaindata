@@ -15,9 +15,12 @@ type ScanController struct{}
 // 节点 + 链名
 // 不同网络，相同链名可以区分
 // 相同网络，不同节点会造成重复数据
+// 通过network字段区分网络类型
+// 目前类型网络表示： 主网：01  测试网：02
 type AddChainReq struct {
-	Bcname string `json:"bcname"` // 链名
-	Node   string `json:"node"`   // 节点
+	Network string `json:"network"` // 主网/测试网
+	Node    string `json:"node"`    // 节点
+	Bcname  string `json:"bcname"`  // 链名
 }
 
 func (s *ScanController) AddChain(c *gin.Context) {
@@ -60,7 +63,7 @@ func (s *ScanController) AddChain(c *gin.Context) {
 	// 存在这条链
 	// 记录下数据
 	// 检查是否重复添加链，（数据库中是否有记录）
-	result := service.NewSever().AddChain(params.Node, params.Bcname)
+	result := service.NewSever().AddChain(params.Network, params.Node, params.Bcname)
 	if result == 0 {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"result": "add chain error",
@@ -80,8 +83,8 @@ func (s *ScanController) AddChain(c *gin.Context) {
 
 // 扫描请求参数
 type ScanReq struct {
-	Bcname string `json:"bcname"`
-	Node   string `json:"node"`
+	Network string `json:"network"`
+	Bcname  string `json:"bcname"`
 }
 
 // 启动扫描
@@ -95,7 +98,7 @@ func (s *ScanController) StartScan(c *gin.Context) {
 		return
 	}
 	// 节点 + 链名
-	err = service.NewSever().StartScanService(params.Node, params.Bcname)
+	err = service.NewSever().StartScanService(params.Network, params.Bcname)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"result": fmt.Sprintf("start err: %v", err),
@@ -118,7 +121,7 @@ func (s *ScanController) StopScan(c *gin.Context) {
 		})
 		return
 	}
-	err = service.NewSever().StopScanService(params.Node, params.Bcname)
+	err = service.NewSever().StopScanService(params.Network, params.Bcname)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"result": fmt.Sprintf("stop err: %v", err),

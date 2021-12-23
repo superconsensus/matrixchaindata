@@ -3,6 +3,8 @@ package scan_server
 import (
 	"fmt"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"log"
 	"matrixchaindata/global"
 	chain_server "matrixchaindata/internal/chain-server"
@@ -64,18 +66,50 @@ func TestWriteDB_IsHandle(t *testing.T) {
 	database := "boxi"
 	//node := "120.79.69.94:37102"
 	bcname := "xuper"
-	block_id := 1440092
+	//block_id := 1440092
 
 	dbClient, err := global.NewMongoClient(dbSource, database)
 	if err != nil {
 		fmt.Println("create db clien error")
 	}
-	blockCol := dbClient.Database.Collection(fmt.Sprintf("block_%s", bcname))
+	//blockCol := dbClient.Database.Collection(fmt.Sprintf("block_%s", bcname))
+	//
+	//data := blockCol.FindOne(nil, bson.D{{"_id", block_id}})
+	//if data.Err() != nil {
+	//	fmt.Println(data.Err())
+	//} else {
+	//	fmt.Println("has data")
+	//}
+	start := time.Now()
+	blockCol := dbClient.Collection(fmt.Sprintf("block_%s", bcname))
 
-	data := blockCol.FindOne(nil, bson.D{{"_id", block_id}})
-	if data.Err() != nil {
-		fmt.Println(data.Err())
-	} else {
-		fmt.Println("has data")
+	//获取数据库中最后的区块高度
+	sort := 1
+	limit := int64(0)
+	var heights []int64
+
+	cursor, err := blockCol.Find(nil, bson.M{}, &options.FindOptions{
+		Projection: bson.M{"_id": 1},
+		Sort:       bson.M{"_id": sort},
+		Limit:      &limit,
+	})
+
+	if err != nil && err != mongo.ErrNoDocuments {
+		fmt.Println()
+		return
 	}
+	var reply bson.A
+	if cursor != nil {
+		err = cursor.All(nil, &reply)
+	}
+	fmt.Println(len(reply))
+	//获取需要遍历的区块高度
+	heights = make([]int64, len(reply))
+	for i, v := range reply {
+		heights[i] = v.(bson.D).Map()["_id"].(int64)
+	}
+	//lacks := findLacks(heights)
+	fmt.Println(time.Now().Sub(start).String())
+	fmt.Println(heights[len(heights)-1])
+	//fmt.Println(len(heights), len(lacks))
 }

@@ -56,7 +56,7 @@ func WatchBlockEvent(bcname string, conn *grpc.ClientConn) (*Watcher, error) {
 		for {
 			select {
 			case <-exit:
-				log.Println("stop watch")
+				log.Println("[watch goroutine]---stop watch")
 				return
 			default:
 				event, err := stream.Recv()

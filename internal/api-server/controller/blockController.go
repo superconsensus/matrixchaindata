@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"fmt"
 	"github.com/gin-gonic/gin"
 	"matrixchaindata/internal/api-server/service"
 	"net/http"
@@ -14,6 +13,7 @@ type BlockController struct{}
 // 获取区块信息
 // 需要传入参数有链的名字
 type GetBlockReq struct {
+	Network string `json:"network"`
 	Bcname  string `json:"bcname"`
 	BlockId string `json:"blockid"`
 	Height  string `json:"height"`
@@ -23,15 +23,23 @@ func (b *BlockController) GetBlock(c *gin.Context) {
 	// 获取一个区块信息params
 	params := &GetBlockReq{}
 	err := c.ShouldBindJSON(params)
-	fmt.Printf("%#v", params)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"err": err})
 		return
 	}
+	// 根据网络类型和链名字获取数据
+	server := service.NewSever()
+	chainInfo, err := server.GetChainInfo(params.Network, params.Bcname)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, err)
+		return
+	}
+	_node := chainInfo["node"].(string)
+
 	height, _ := strconv.ParseInt(params.Height, 10, 64)
 	// 调用service获取数据
 	// 直接去链上查询
-	blockdata, err := service.NewSever().GetBlockFormChain(params.BlockId, height, params.Bcname)
+	blockdata, err := server.GetBlockFormChain(_node, params.Bcname, params.BlockId, height)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"msg": "error",
@@ -45,7 +53,8 @@ func (b *BlockController) GetBlock(c *gin.Context) {
 
 // 根据链的名字获取区块高度
 type GetBlockCount struct {
-	Bcname string `json:"bcname"`
+	Network string `json:"network"`
+	Bcname  string `json:"bcname"`
 }
 
 func (b *BlockController) GetBlockCount(c *gin.Context) {
@@ -55,8 +64,17 @@ func (b *BlockController) GetBlockCount(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"err": err})
 		return
 	}
+
 	// 调用server获取数据
-	height, err := service.NewSever().GetBlockCountFromeChain(params.Bcname)
+	server := service.NewSever()
+	chainInfo, err := server.GetChainInfo(params.Network, params.Bcname)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, err)
+		return
+	}
+	_node := chainInfo["node"].(string)
+
+	height, err := server.GetBlockCountFromeChain(_node, params.Bcname)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": err,
@@ -70,6 +88,7 @@ func (b *BlockController) GetBlockCount(c *gin.Context) {
 
 // 获取区块列表
 type GetBlockList struct {
+	Network     string `json:"network"`
 	Bcname      string `json:"bcname"`
 	BlockHeight string `json:"blockheight"`
 	Num         string `json:"num"`
@@ -85,7 +104,15 @@ func (b *BlockController) GetBlockList(c *gin.Context) {
 	height, _ := strconv.ParseInt(params.BlockHeight, 10, 64)
 	num, _ := strconv.ParseInt(params.Num, 10, 64)
 	// 获取数据
-	blocklist, err := service.NewSever().GetBockekListFromChain(height, num, params.Bcname)
+	server := service.NewSever()
+	chainInfo, err := server.GetChainInfo(params.Network, params.Bcname)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, err)
+		return
+	}
+	_node := chainInfo["node"].(string)
+
+	blocklist, err := server.GetBockekListFromChain(_node, params.Bcname, height, num)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"err": err})
 		return

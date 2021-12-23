@@ -19,11 +19,11 @@ import (
 // tx    交易信息表
 // account 账号信息表
 // v1.0版本是监听主链，v2.0 需要监听指定的链
-// 现在设计是表是 在原理来的基础上加上链名作为后缀
-// count_xxx
-//  block_xxx
-//  tx_xxx
-//  account_xxx
+// 现在设计是表是 在原理来的基础上加上节点和链名作为后缀
+// count_node_xxx
+// block_node_xxx
+// tx_node_xxx
+// account_node_xxx
 
 var (
 	gosize = 10
@@ -31,7 +31,6 @@ var (
 	locker sync.Mutex
 )
 
-// todo 增加合约列表
 type Count struct {
 	//ID        primitive.ObjectID `bson:"_id,omitempty"`
 	TxCount   int64  `bson:"tx_count"`   //交易总数
@@ -66,34 +65,41 @@ func (w *WriteDB) Cloce() {
 func (w *WriteDB) Save(block *utils.InternalBlock, node, bcname string) error {
 	// 多加一层判断，这个区块是否处理过了
 	if w.IsHandle(block.Height, node, bcname) {
-		log.Println("this block is handle", block.Height)
+		log.Println("this block is handled", block.Height)
 		return fmt.Errorf("height is handled, countine")
 	}
 
-	//存统计
-	err := w.SaveCount(block, node, bcname)
-	if err != nil {
-		return err
-	}
+	// todo 可以并发写的，他们不会操作同一张表
+	//存统计 （account, count表）
+	go func() {
+		err := w.SaveCount(block, node, bcname)
+		if err != nil {
+			log.Println(err)
+		}
+	}()
 
-	//存交易
-	err = w.SaveTx(block, node, bcname)
-	if err != nil {
-		return err
-	}
+	go func() {
+		//存交易 （tx表）
+		err := w.SaveTx(block, node, bcname)
+		if err != nil {
+			log.Println(err)
+		}
+	}()
 
-	//存区块
-	err = w.SaveBlock(block, node, bcname)
-	if err != nil {
-		return err
-	}
+	go func() {
+		//存区块 （block表）
+		err := w.SaveBlock(block, node, bcname)
+		if err != nil {
+			log.Println(err)
+		}
+	}()
 
 	return nil
 }
 
 // 这个区块的数据是否处理过了？
 func (w *WriteDB) IsHandle(block_id int64, node, bcname string) bool {
-	blockCol := w.MongoClient.Database.Collection(fmt.Sprintf("block_%s_%s", node, bcname))
+	blockCol := w.MongoClient.Database.Collection(utils.BlockCol(node, bcname))
 	data := blockCol.FindOne(nil, bson.D{{"_id", block_id}})
 	if data.Err() != nil {
 		return false
@@ -107,9 +113,9 @@ func (w *WriteDB) SaveCount(block *utils.InternalBlock, node, bcname string) err
 	defer locker.Unlock()
 
 	// 总数统计集合
-	countCol := w.MongoClient.Database.Collection(fmt.Sprintf("count_%s", bcname))
+	countCol := w.MongoClient.Database.Collection(utils.CountCol(node, bcname))
 	// 账号统计集合
-	accCol := w.MongoClient.Database.Collection(fmt.Sprintf("account_%s", bcname))
+	accCol := w.MongoClient.Database.Collection(utils.AccountCol(node, bcname))
 
 	//获取已有数据,缓存起来
 	if counts == nil {
@@ -150,16 +156,16 @@ func (w *WriteDB) SaveCount(block *utils.InternalBlock, node, bcname string) err
 				//缓存账户
 				counts.Accounts = append(counts.Accounts, txOutput.ToAddr)
 				//写入数据库
-				//_, err := accCol.InsertOne(nil, bson.D{
-				//	{"_id", txOutput.ToAddr},
-				//	{"timestamp", tx.Timestamp},
-				//})
+				_, err := accCol.InsertOne(nil, bson.D{
+					{"_id", txOutput.ToAddr},
+					{"timestamp", tx.Timestamp},
+				})
 				// by boxi
-				_, err := accCol.UpdateOne(nil,
-					bson.D{{"_id", txOutput.ToAddr}},
-					bson.D{
-						{"_id", txOutput.ToAddr},
-						{"timestamp", tx.Timestamp}})
+				//_, err := accCol.UpdateOne(nil,
+				//	bson.D{{"_id", txOutput.ToAddr}},
+				//	bson.D{
+				//		{"_id", txOutput.ToAddr},
+				//		{"timestamp", tx.Timestamp}})
 				if err != nil {
 					return err
 				}
@@ -183,6 +189,7 @@ func (w *WriteDB) SaveCount(block *utils.InternalBlock, node, bcname string) err
 	//统计交易总数
 	counts.TxCount += int64(block.TxCount)
 
+	// todo 修改获取金额的方式
 	// 扫描旧的区块的时候，每次块都请求一次，链服务器压力大
 	// io 过程漫长
 	//统计全网金额
@@ -208,12 +215,13 @@ func (w *WriteDB) SaveCount(block *utils.InternalBlock, node, bcname string) err
 }
 
 // 保存交易数据
+// todo 区分一下合约调用
 func (w *WriteDB) SaveTx(block *utils.InternalBlock, node, bcname string) error {
 
 	//索引 最新的交易
 	//global.col.createIndex({"timestamp":-1}, {background: true})
 
-	txCol := w.MongoClient.Database.Collection(fmt.Sprintf("tx_%s", bcname))
+	txCol := w.MongoClient.Database.Collection(utils.TxCol(node, bcname))
 	up := true
 	var err error
 
@@ -291,19 +299,20 @@ func (w *WriteDB) SaveBlock(block *utils.InternalBlock, node, bcname string) err
 
 	iblock := bson.D{
 		{"_id", block.Height},
-		//{"blockid", block.Blockid},
-		//{"proposer", block.Proposer},
+		{"blockid", block.Blockid},
+		{"proposer", block.Proposer},
 		//{"transactions", txids},
 		//{"txCount", block.TxCount},
-		//{"preHash", block.PreHash},
+		{"preHash", block.PreHash},
 		//{"inTrunk", block.InTrunk},
-		//{"timestamp", block.Timestamp},
+		{"timestamp", block.Timestamp},
 	}
 
-	blockCol := w.MongoClient.Database.Collection(fmt.Sprintf("block_%s", bcname))
-	_, err := blockCol.UpdateOne(
-		nil,
-		bson.D{{"_id", block.Height}},
-		bson.D{{"$set", iblock}})
+	blockCol := w.MongoClient.Database.Collection(utils.BlockCol(node, bcname))
+	//_, err := blockCol.UpdateOne(
+	//	nil,
+	//	bson.D{{"_id", block.Height}},
+	//	bson.D{{"$set", iblock}})
+	_, err := blockCol.InsertOne(nil, iblock)
 	return err
 }
