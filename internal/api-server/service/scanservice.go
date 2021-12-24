@@ -97,7 +97,6 @@ func (s *Serve) StartScanService(network, bcname string) error {
 	// 方便停止扫描
 	scan_server.AddScaner(key, scaner)
 	// 启动
-	// todo 耗时太高,需要优化
 	err = scaner.Start()
 	if err != nil {
 		// 启动失败
@@ -106,7 +105,6 @@ func (s *Serve) StartScanService(network, bcname string) error {
 		scan_server.RemoteScanner(key)
 		//2 监听器资源清理
 		scaner.Watcher.Exit <- struct{}{}
-		scaner.GrpcConn.Close()
 		return fmt.Errorf("start error: %v", err)
 	}
 

@@ -63,6 +63,7 @@ func (w *WriteDB) Cloce() {
 // -----------------------------------------------------------------
 // 保存区块数据信息
 func (w *WriteDB) Save(block *utils.InternalBlock, node, bcname string) error {
+
 	// 多加一层判断，这个区块是否处理过了
 	if w.IsHandle(block.Height, node, bcname) {
 		log.Println("this block is handled", block.Height)
@@ -70,6 +71,7 @@ func (w *WriteDB) Save(block *utils.InternalBlock, node, bcname string) error {
 	}
 
 	// todo 可以并发写的，他们不会操作同一张表
+	// 有一点需要注意的是block传过来的是指针，读数据就好了不要写。
 	//存统计 （account, count表）
 	go func() {
 		err := w.SaveCount(block, node, bcname)
@@ -102,6 +104,7 @@ func (w *WriteDB) IsHandle(block_id int64, node, bcname string) bool {
 	blockCol := w.MongoClient.Database.Collection(utils.BlockCol(node, bcname))
 	data := blockCol.FindOne(nil, bson.D{{"_id", block_id}})
 	if data.Err() != nil {
+		// 没有记录
 		return false
 	}
 	return true
@@ -243,14 +246,18 @@ func (w *WriteDB) SaveTx(block *utils.InternalBlock, node, bcname string) error 
 			content := stringtime[0:13]
 			tx.Timestamp, _ = strconv.ParseInt(content, 10, 64)
 		}
+
+		// 交易类型判断
 		if tx.Desc == "1" { //投票奖励
 			status = "vote_reward"
 		} else if tx.Desc == "thaw" { //解冻
 			status = "thaw"
 		} else if tx.Desc == "award" { //出块奖励
 			status = "block_reward"
-		} else { //其他正常交易
-			status = "normal"
+		}
+		// 合约调用
+		if len(tx.ContractRequests) >= 1 {
+			status = fmt.Sprintf("%s_contract_request", tx.ContractRequests[0].ContractName)
 		}
 
 		_, err = txCol.ReplaceOne(nil,
@@ -302,7 +309,7 @@ func (w *WriteDB) SaveBlock(block *utils.InternalBlock, node, bcname string) err
 		{"blockid", block.Blockid},
 		{"proposer", block.Proposer},
 		//{"transactions", txids},
-		//{"txCount", block.TxCount},
+		{"txCount", block.TxCount},
 		{"preHash", block.PreHash},
 		//{"inTrunk", block.InTrunk},
 		{"timestamp", block.Timestamp},

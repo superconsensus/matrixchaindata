@@ -3,12 +3,10 @@ package scan_server
 import (
 	"fmt"
 	"github.com/panjf2000/ants/v2"
-	"github.com/wxnacy/wgo/arrays"
 	"github.com/xuperchain/xuperchain/service/pb"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"google.golang.org/grpc"
 	"log"
 	"matrixchaindata/global"
 	chain_server "matrixchaindata/internal/chain-server"
@@ -20,9 +18,9 @@ import (
 // 扫描器
 type Scaner struct {
 	// 链相关
-	Node     string
-	Bcname   string
-	GrpcConn *grpc.ClientConn
+	Node        string
+	Bcname      string
+	ChainClient *chain_server.ChainClient // 链客户端
 	// 数据库
 	DBWrite *WriteDB
 	// 监听器用于获取数据
@@ -35,10 +33,10 @@ type Scaner struct {
 
 // 创建扫描器
 func NewScanner(node, bcname string) (*Scaner, error) {
-	// 创建grpc连接
-	conn := chain_server.NewConnet(node)
-	if conn == nil {
-		return nil, fmt.Errorf("conn fail")
+	// 创建链客户端连接
+	client, err := chain_server.NewChainClien(node)
+	if err != nil {
+		return nil, fmt.Errorf("creat chain client fail")
 	}
 
 	//数据库处理
@@ -46,7 +44,7 @@ func NewScanner(node, bcname string) (*Scaner, error) {
 	writeDB := NewWriterDB(global.GloMongodbClient)
 
 	// 监听数据
-	watcher, err := chain_server.WatchBlockEvent(bcname, conn)
+	watcher, err := client.WatchBlockEvent(bcname)
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +52,7 @@ func NewScanner(node, bcname string) (*Scaner, error) {
 	return &Scaner{
 		Node:          node,
 		Bcname:        bcname,
-		GrpcConn:      conn,
+		ChainClient:   client,
 		DBWrite:       writeDB,
 		Watcher:       watcher,
 		LackBlockChan: make(chan *pb.InternalBlock, 100),
@@ -66,6 +64,8 @@ func NewScanner(node, bcname string) (*Scaner, error) {
 // 关闭工作是这样的，连接不为空，则发送退出信号
 // goroutin 接收到信息，则关闭grpc连接，在退出
 // todo 优化
+// 处理旧数据的goroutine在同步数据的时候退出，如何处理？
+// 监听数据很好控制
 func (s *Scaner) Stop() {
 	s.Exit <- struct{}{}
 }
@@ -78,12 +78,13 @@ func (s *Scaner) Start() error {
 	// 把获取的区块写入LackBlockChan 管道中
 	// 这样可以避免并发写数据库
 	go func() {
-		log.Println("handle old data")
-		heightChain, exit, err := s.GetLackHeghts()
+		log.Println("handle old data", s.Node, s.Bcname)
+		heightChain, exit, err := s.GetLackHeights()
 		if err != nil {
 			log.Println(err)
 		}
 		err = s.GetBlocks(heightChain, exit)
+		//err = s.GetBlocksV2(heightChain, exit)
 		if err != nil {
 			log.Println(exit)
 		}
@@ -97,7 +98,8 @@ func (s *Scaner) Start() error {
 			// 监听，如果出现错误关闭管道并退出
 			// 通知监听goroutine退出，随后自己停止
 			s.Watcher.Exit <- struct{}{}
-			s.GrpcConn.Close()
+			// 关闭
+			//s.ChainClient.Close()
 			return
 		}()
 		for {
@@ -108,12 +110,12 @@ func (s *Scaner) Start() error {
 				log.Println("stop scnner")
 				// 通知监听器退出
 				s.Watcher.Exit <- struct{}{}
-				// 关闭grpc连接
-				s.GrpcConn.Close()
+				// 关闭grpc连接,放在其他地方处理
+				s.ChainClient.Close()
 				log.Println("clear network source")
 				return
 			case block := <-s.Watcher.FilteredBlockChan:
-				log.Println("get data from watch chan")
+				//log.Println("get data from watch chan", s.Bcname)
 				// 处理监听器中数据
 				err := s.DBWrite.Save(utils.FromInternalBlockPB(block), s.Node, s.Bcname)
 				if err != nil {
@@ -147,25 +149,24 @@ func (s *Scaner) Start() error {
 // 改进: 找到一个去链上获取，利用管道的特性
 // 异步执行
 // ------------------------------
-func (s *Scaner) GetLackHeghts() (<-chan int64, <-chan struct{}, error) {
+func (s *Scaner) GetLackHeights() (<-chan int64, <-chan struct{}, error) {
 	// 最新的区块高度
-	_, H, err := chain_server.GetUtxoTotalAndTrunkHeight(s.Node, s.Bcname)
+	_, H, err := s.ChainClient.GetUtxoTotalAndTrunkHeight(s.Bcname)
 	if err != nil {
 		return nil, nil, err
 	}
-
-	log.Println("start get lack blocks")
+	log.Println("start get lack blocks", s.Node, s.Bcname)
 	// 获取区块集合
 	blockCol := s.DBWrite.MongoClient.Database.Collection(utils.BlockCol(s.Node, s.Bcname))
 
 	//获取数据库中最后的区块高度
-	sort := 1
+
 	limit := int64(0)
 	var heights []int64
 
 	cursor, err := blockCol.Find(nil, bson.M{}, &options.FindOptions{
 		Projection: bson.M{"_id": 1},
-		Sort:       bson.M{"_id": sort},
+		Sort:       bson.M{"_id": 1},
 		Limit:      &limit,
 	})
 
@@ -194,11 +195,11 @@ func (s *Scaner) GetLackHeghts() (<-chan int64, <-chan struct{}, error) {
 		// 第一次扫描，或者是清空了数据库
 		// 需要同步的数据是 1 - H
 		go func() {
+			log.Println("get lack heitht 2")
 			var i int64 = 1
 			for ; i <= H; i++ {
 				heightChan <- i
 			}
-
 			exit <- struct{}{}
 		}()
 	} else {
@@ -207,13 +208,13 @@ func (s *Scaner) GetLackHeghts() (<-chan int64, <-chan struct{}, error) {
 		// 数据库中存在数据
 		// heights[len(height)-1] ...  nowHeight
 		go func() {
+			log.Println("get lack heitht 2")
 			var i int64 = 0
 			for ; i < H; i++ {
 				//不存在,记录该值
-				index := arrays.ContainsInt(heights, i)
+				index := SearchInt64(heights, i)
 				if index == -1 {
 					heightChan <- i
-					continue
 				}
 				//存在,剔除该值
 				// 消耗性能有可能是这部，切片频繁的变换
@@ -226,18 +227,13 @@ func (s *Scaner) GetLackHeghts() (<-chan int64, <-chan struct{}, error) {
 }
 
 func (s *Scaner) GetBlocks(heightChan <-chan int64, exit <-chan struct{}) error {
-	client, err := chain_server.NewChainClien(s.Node)
-	if err != nil {
-		return err
-	}
-	defer client.Close()
 	// 获取数据使用协程池
 	//用个协程池,避免控制并发量
 	defer ants.Release()
 	wg := sync.WaitGroup{}
 	p, _ := ants.NewPoolWithFunc(gosize, func(i interface{}) {
 		func(height int64) {
-			iblock, err := client.GetBlockByHeight(s.Bcname, height)
+			iblock, err := s.ChainClient.GetBlockByHeight(s.Bcname, height)
 			if err != nil {
 				log.Printf("get block by height failed, height: %d, error: %s", height, err)
 				return
@@ -247,10 +243,6 @@ func (s *Scaner) GetBlocks(heightChan <-chan int64, exit <-chan struct{}) error 
 		wg.Done()
 	})
 	defer p.Release()
-	//for _, height := range lacks {
-	//	wg.Add(1)
-	//	_ = p.Invoke(height)
-	//}
 
 	// 监听高度管道的goroutine
 	wg.Add(1)
@@ -259,7 +251,7 @@ func (s *Scaner) GetBlocks(heightChan <-chan int64, exit <-chan struct{}) error 
 			select {
 			case <-exit:
 				// 退出这个goroutin
-				log.Println("exit heightchan")
+				log.Println("exit heightchan", s.Node, s.Bcname)
 				wg.Done()
 			case height, ok := <-heightChan:
 				if ok {
@@ -272,7 +264,51 @@ func (s *Scaner) GetBlocks(heightChan <-chan int64, exit <-chan struct{}) error 
 		}
 	}()
 	wg.Wait()
-	log.Println("get blocks finished")
+	log.Println("get blocks finished", s.Node, s.Bcname)
 	close(s.LackBlockChan)
 	return nil
+}
+
+//func (s *Scaner) GetBlocksV2(heightChan <-chan int64, exit <-chan struct{}) error{
+//	go func() {
+//		for {
+//			select {
+//			case <-exit:
+//				// 退出这个goroutin
+//				log.Println("exit heightchan",s.Node,s.Bcname)
+//			case height, ok := <-heightChan:
+//				if ok {
+//					go func() {
+//						iblock, err := s.ChainClient.GetBlockByHeight(s.Bcname, height)
+//						if err != nil {
+//							log.Printf("get block by height failed, height: %d, error: %s", height, err)
+//							return
+//						}
+//						s.LackBlockChan <- iblock
+//					}()
+//				} else {
+//					heightChan = nil
+//				}
+//			}
+//		}
+//	}()
+//	return nil
+//}
+
+// x 在 a 中的索引
+func SearchInt64(a []int64, x int64) int64 {
+	var index int64 = -1
+	i, j := int64(0), int64(len(a))
+	for i < j {
+		// 中间
+		middle := int64(uint64(i+j) >> 1)
+		if a[middle] > x {
+			j = middle
+		} else if a[middle] < x {
+			i = middle + 1
+		} else {
+			return middle
+		}
+	}
+	return index
 }

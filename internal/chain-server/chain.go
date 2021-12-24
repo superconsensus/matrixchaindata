@@ -17,7 +17,10 @@ import (
 // 链客户端
 type ChainClient struct {
 	conn *grpc.ClientConn
-	xc   pb.XchainClient
+	// 链客户端
+	xc pb.XchainClient
+	// 事件服务客户端
+	esc pb.EventServiceClient
 }
 
 // 创建链客户端
@@ -29,6 +32,7 @@ func NewChainClien(node string) (*ChainClient, error) {
 	return &ChainClient{
 		conn: conn,
 		xc:   pb.NewXchainClient(conn),
+		esc:  pb.NewEventServiceClient(conn),
 	}, nil
 }
 
@@ -64,8 +68,39 @@ func (c *ChainClient) GetBlockByHeight(bcname string, height int64) (*pb.Interna
 		return nil, errors.New("GetBlockByHeight: the block is null")
 	}
 	return reply.Block, nil
-
 }
+
+// 获取utxo总量和高度
+// args:
+//      - node     节点地址
+//      - bcname   链名字
+// returns:
+//      - total  utxo总量
+//      - height 区块高度
+func (c *ChainClient) GetUtxoTotalAndTrunkHeight(bcname string) (string, int64, error) {
+	//查询单条链状态信息
+	bcStatusPB := &pb.BCStatus{Bcname: bcname}
+	bcStatus, err := c.xc.GetBlockChainStatus(context.TODO(), bcStatusPB)
+	if err != nil {
+		return "", -1, err
+	}
+	if bcStatus == nil {
+		return "", -1, errors.New("GetBlockChainStatus: the chain is null")
+	}
+	if bcStatus.Header.Error != pb.XChainErrorEnum_SUCCESS {
+		return "-1", -1, errors.New("GetBlockChainStatus: Header.Error is fail")
+	}
+
+	total := bcStatus.UtxoMeta.UtxoTotal
+	if err != nil {
+		return "", -1, err
+	}
+	return total, bcStatus.Meta.TrunkHeight, nil
+}
+
+// --------------------------------------------------------------
+//
+// --------------------------------------------------------------
 
 // 获取utxo总量和高度
 // args:

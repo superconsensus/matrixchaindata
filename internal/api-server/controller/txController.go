@@ -3,6 +3,7 @@ package controller
 import (
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"log"
 	"matrixchaindata/internal/api-server/service"
 	chain_server "matrixchaindata/internal/chain-server"
 	"net/http"
@@ -16,10 +17,10 @@ import (
 // account 账号信息表
 // v1.0版本是监听主链，v2.0 需要监听指定的链
 // 现在设计是表是 在原理来的基础上加上节点和链名作为后缀
-// count_node_xxx
-//  block_node_xxx
-//  tx_node_xxx
-//  account_node_xxx
+// count_hash_xxx
+//  block_hash_xxx
+//  tx_hash_xxx
+//  account_hash_xxx
 
 // 交易控制器
 type TxController struct{}
@@ -161,7 +162,7 @@ func (t *TxController) GetTxList(c *gin.Context) {
 }
 
 type GetContListReq struct {
-	Network         string `json:"netwrok"`
+	Network         string `json:"network"`
 	Bcname          string `json:"bcname"`
 	ContractAccount string `json:"contractaccount"`
 	Address         string `json:"address"`
@@ -201,7 +202,7 @@ func (t *TxController) GetContractList(c *gin.Context) {
 
 // 根据合约名字查出相关的交易
 type ContractTxs struct {
-	Network      string `json:"netwrok"`
+	Network      string `json:"network"`
 	Bcname       string `json:"bcname"`
 	ContractName string `json:"contractname"`
 }
@@ -219,6 +220,7 @@ func (t *TxController) GetContractTxs(c *gin.Context) {
 	server := service.NewSever()
 	chainInfo, err := server.GetChainInfo(params.Network, params.Bcname)
 	if err != nil {
+		log.Println("info", err)
 		c.JSON(http.StatusInternalServerError, err)
 		return
 	}

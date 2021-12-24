@@ -4,7 +4,6 @@ import (
 	"context"
 	"github.com/golang/protobuf/proto"
 	"github.com/xuperchain/xuperchain/service/pb"
-	"google.golang.org/grpc"
 	"io"
 	"log"
 )
@@ -17,7 +16,7 @@ type Watcher struct {
 
 // 监听链上的数据
 // WatchBlockEvent new watcher for block event.
-func WatchBlockEvent(bcname string, conn *grpc.ClientConn) (*Watcher, error) {
+func (c *ChainClient) WatchBlockEvent(bcname string) (*Watcher, error) {
 	// 创建监听器
 	watcher := &Watcher{}
 	// 区块过滤条件
@@ -31,8 +30,8 @@ func WatchBlockEvent(bcname string, conn *grpc.ClientConn) (*Watcher, error) {
 	}
 
 	// 订阅时间
-	xclient := pb.NewEventServiceClient(conn)
-	stream, err := xclient.Subscribe(context.TODO(), request)
+	//xclient := pb.NewEventServiceClient(conn)
+	stream, err := c.esc.Subscribe(context.TODO(), request)
 	if err != nil {
 		return nil, err
 	}
