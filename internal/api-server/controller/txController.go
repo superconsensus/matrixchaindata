@@ -79,7 +79,7 @@ func (t *TxController) GetTx(c *gin.Context) {
 type TxAmountReq struct {
 	Network string `json:"network"`
 	Bcname  string `json:"bcname"`
-	Opt     string `json:"type"` // 0 :全网， 1： 转入， 2： 转出
+	Opt     string `json:"opt"` // 0 :全网， 1： 转入， 2： 转出
 	Addr    string `json:"addr"`
 }
 

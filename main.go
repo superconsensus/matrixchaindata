@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"log"
 	"matrixchaindata/global"
 	"matrixchaindata/internal/api-server/router"
 	"matrixchaindata/settings"
@@ -21,8 +22,7 @@ func main() {
 	// 实例化数据库
 	err = global.InitmongoDB(settings.Setting.MongoDB, settings.Setting.Database)
 	if err != nil {
-		fmt.Println(err)
-		fmt.Println("init db fail")
+		log.Println(err)
 	}
 	//实例化gin框架
 	r := gin.Default()
@@ -30,6 +30,5 @@ func main() {
 	//注册路由
 	router.InitRouter(r)
 	_ = r.Run(settings.Setting.HttpPort) // listen and serve on 0.0.0.0:8080
-
 	// todo 优雅停止
 }
