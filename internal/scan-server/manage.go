@@ -1,15 +1,14 @@
 package scan_server
 
 // 扫描器管理
-// key :  node + bcnname + addr(节点管理员)
+// key :  node + bcnname
 // 确保key是唯一的
 var Scaners map[string]*Scaner
 
 // 初始化，防止空map
-func init()  {
+func init() {
 	Scaners = map[string]*Scaner{}
 }
-
 
 func AddScaner(key string, scanner *Scaner) {
 	if _, ok := Scaners[key]; !ok {
@@ -17,10 +16,10 @@ func AddScaner(key string, scanner *Scaner) {
 	}
 }
 
-func RemoteScanner(key string) {
+func RemoveScanner(key string) {
 	//停止扫描的时候主动移除
 	// 如果复用scanner 可能会发生问题
-	if _, ok := Scaners[key];ok {
+	if _, ok := Scaners[key]; ok {
 		delete(Scaners, key)
 	}
 }
@@ -29,7 +28,7 @@ func GetScanner(key string) *Scaner {
 	return Scaners[key]
 }
 
-func IsExist(key string) bool  {
+func IsExist(key string) bool {
 	_, ok := Scaners[key]
 	return ok
 }

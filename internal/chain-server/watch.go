@@ -55,7 +55,7 @@ func (c *ChainClient) WatchBlockEvent(bcname string) (*Watcher, error) {
 		for {
 			select {
 			case <-exit:
-				log.Println("[watch goroutine]---stop watch")
+				log.Println("[watch goroutine]---stop watch", bcname)
 				return
 			default:
 				event, err := stream.Recv()
@@ -63,13 +63,13 @@ func (c *ChainClient) WatchBlockEvent(bcname string) (*Watcher, error) {
 					return
 				}
 				if err != nil {
-					log.Printf("Get block event err: %v", err)
+					log.Printf("Get block event err: %v, %s", err, bcname)
 					return
 				}
 				var block pb.InternalBlock
 				err = proto.Unmarshal(event.Payload, &block)
 				if err != nil {
-					log.Printf("Get block event err: %v", err)
+					log.Printf("Get block event err: %v, %s", err, bcname)
 					return
 				}
 				//if &block == nil {

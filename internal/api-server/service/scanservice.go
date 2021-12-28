@@ -97,12 +97,12 @@ func (s *Serve) StartScanService(network, bcname string) error {
 	// 方便停止扫描
 	scan_server.AddScaner(key, scaner)
 	// 启动
-	err = scaner.Start()
+	err = scaner.Start2()
 	if err != nil {
 		// 启动失败
 		// 资源清理
 		//1 管理器中移除扫描器
-		scan_server.RemoteScanner(key)
+		scan_server.RemoveScanner(key)
 		//2 监听器资源清理
 		scaner.Watcher.Exit <- struct{}{}
 		return fmt.Errorf("start error: %v", err)
@@ -113,11 +113,11 @@ func (s *Serve) StartScanService(network, bcname string) error {
 
 // 停止扫描服务
 func (s *Serve) StopScanService(network, bcname string) error {
-	log.Println("start scan")
+	log.Println("stop scan")
 	// 查找数据库
 	chainInfo, err := s.GetChainInfo(network, bcname)
 	if err != nil {
-		fmt.Println("boxi_1", err)
+		log.Println("search db err,check params", err)
 		return err
 	}
 	_node := chainInfo["node"].(string)
@@ -125,13 +125,14 @@ func (s *Serve) StopScanService(network, bcname string) error {
 	key := fmt.Sprintf("%s_%s", _node, bcname)
 	scanner := scan_server.GetScanner(key)
 	if scanner == nil {
-		return fmt.Errorf("key error")
+		return fmt.Errorf("key error,check params")
 	}
 	// todo
 	// 正在同数据,如果停止
-	scanner.Stop()
+	scanner.Stop2()
 	// 移除扫描器防止复用
-	scan_server.RemoteScanner(key)
+	log.Println("remove scancer")
+	scan_server.RemoveScanner(key)
 	return nil
 }
 
