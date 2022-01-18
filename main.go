@@ -1,13 +1,15 @@
 package main
 
 import (
-	"fmt"
-	"github.com/gin-gonic/gin"
+	"context"
 	"log"
 	"matrixchaindata/global"
 	"matrixchaindata/internal/api-server/router"
-	"matrixchaindata/settings"
+	"matrixchaindata/pkg/settings"
+	"net/http"
 	"os"
+	"os/signal"
+	"time"
 )
 
 func main() {
@@ -17,18 +19,40 @@ func main() {
 		panic(err)
 	}
 	settings.ParseConfig(dir + "/config/config.json")
-	fmt.Printf("%#v", settings.Setting)
+	log.Printf("%#v", settings.Setting)
 
 	// 实例化数据库
 	err = global.InitmongoDB(settings.Setting.MongoDB, settings.Setting.Database)
 	if err != nil {
 		log.Println(err)
 	}
-	//实例化gin框架
-	r := gin.Default()
 
 	//注册路由
-	router.InitRouter(r)
-	_ = r.Run(settings.Setting.HttpPort) // listen and serve on 0.0.0.0:8080
-	// todo 优雅停止
+	r := router.InitRouter()
+	s := &http.Server{
+		Addr:           settings.Setting.HttpPort,
+		Handler:        r,
+		ReadTimeout:    60,
+		WriteTimeout:   60,
+		MaxHeaderBytes: 1 << 20,
+	}
+
+	// 启动http server
+	go func() {
+		if err := s.ListenAndServe(); err != nil {
+			log.Println("listen err :", err)
+		}
+	}()
+
+	// 优雅停止
+	quit := make(chan os.Signal)
+	signal.Notify(quit, os.Interrupt)
+	<-quit
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := s.Shutdown(ctx); err != nil {
+		log.Fatal("Server Shutdown:", err)
+	}
+	log.Println("Server exiting")
 }

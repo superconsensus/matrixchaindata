@@ -12,6 +12,7 @@ var (
 )
 
 type Config struct {
+	RunMode  string `json:"run_mode"`
 	HttpPort string `json:"http_port"`
 	MongoDB  string `json:"mongodb"`
 	Database string `json:"database"`

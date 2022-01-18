@@ -97,7 +97,7 @@ func (s *Serve) StartScanService(network, bcname string) error {
 	// 方便停止扫描
 	scan_server.AddScaner(key, scaner)
 	// 启动
-	err = scaner.Start2()
+	err = scaner.Start()
 	if err != nil {
 		// 启动失败
 		// 资源清理
@@ -129,7 +129,7 @@ func (s *Serve) StopScanService(network, bcname string) error {
 	}
 	// todo
 	// 正在同数据,如果停止
-	scanner.Stop2()
+	scanner.Stop()
 	// 移除扫描器防止复用
 	log.Println("remove scancer")
 	scan_server.RemoveScanner(key)

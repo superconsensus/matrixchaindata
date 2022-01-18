@@ -79,7 +79,7 @@ func (s *Serve) GetContractTxs(node, bcname, contractname string) ([]bson.M, err
 	cursur, err := s.Dao.MongoClient.Collection(utils.TxCol(node, bcname)).Find(
 		nil,
 		bson.D{
-			{"status", fmt.Sprintf("%s_contract_request", contractname)},
+			{"status", fmt.Sprintf("%s_contract", contractname)},
 		},
 		opts)
 

@@ -18,15 +18,7 @@ import (
 // block  区块表
 // tx    交易信息表
 // account 账号信息表
-// v1.0版本是监听主链，v2.0 需要监听指定的链
-// 现在设计是表是 在原理来的基础上加上节点和链名作为后缀
-// count_node_xxx
-// block_node_xxx
-// tx_node_xxx
-// account_node_xxx
-
 var (
-	gosize = 10
 	counts *Count
 	locker sync.Mutex
 )
@@ -99,7 +91,7 @@ func (w *WriteDB) Save(block *utils.InternalBlock, node, bcname string) error {
 	return nil
 }
 
-// 这个区块的数据是否处理过了？
+// 这个区块的数据是否处理过
 func (w *WriteDB) IsHandle(block_id int64, node, bcname string) bool {
 	blockCol := w.MongoClient.Database.Collection(utils.BlockCol(node, bcname))
 	data := blockCol.FindOne(nil, bson.D{{"_id", block_id}})
@@ -218,7 +210,6 @@ func (w *WriteDB) SaveCount(block *utils.InternalBlock, node, bcname string) err
 }
 
 // 保存交易数据
-// todo 区分一下合约调用
 func (w *WriteDB) SaveTx(block *utils.InternalBlock, node, bcname string) error {
 
 	//索引 最新的交易
@@ -257,7 +248,7 @@ func (w *WriteDB) SaveTx(block *utils.InternalBlock, node, bcname string) error 
 		}
 		// 合约调用
 		if len(tx.ContractRequests) >= 1 {
-			status = fmt.Sprintf("%s_contract_request", tx.ContractRequests[0].ContractName)
+			status = fmt.Sprintf("%s_contractt", tx.ContractRequests[0].ContractName)
 		}
 
 		_, err = txCol.ReplaceOne(nil,
@@ -266,6 +257,8 @@ func (w *WriteDB) SaveTx(block *utils.InternalBlock, node, bcname string) error 
 				{"_id", tx.Txid},
 				{"status", status},
 				{"height", height},
+				{"timestamp", tx.Timestamp},
+				{"state", state},
 				{"tx", tx},
 				//{"blockHeight", block.Height},
 				//{"timestamp", tx.Timestamp},
@@ -274,7 +267,6 @@ func (w *WriteDB) SaveTx(block *utils.InternalBlock, node, bcname string) error 
 				////{"txOutputs", tx.TxOutputs},
 				//{"coinbase", tx.Coinbase},
 				//{"voteCoinbase", tx.VoteCoinbase},
-				{"state", state},
 				//{"proposer", block.Proposer},
 				//{"formaddress",formaddress},
 				//{"toaddress",toaddress},
@@ -287,9 +279,6 @@ func (w *WriteDB) SaveTx(block *utils.InternalBlock, node, bcname string) error 
 			},
 			&options.ReplaceOptions{Upsert: &up})
 	}
-
-	//txCol := m.Database.Collection("tx")
-	//_, err := txCol.InsertMany(m.ctx, sampleTxs)
 	return err
 }
 
@@ -316,10 +305,6 @@ func (w *WriteDB) SaveBlock(block *utils.InternalBlock, node, bcname string) err
 	}
 
 	blockCol := w.MongoClient.Database.Collection(utils.BlockCol(node, bcname))
-	//_, err := blockCol.UpdateOne(
-	//	nil,
-	//	bson.D{{"_id", block.Height}},
-	//	bson.D{{"$set", iblock}})
 	_, err := blockCol.InsertOne(nil, iblock)
 	return err
 }

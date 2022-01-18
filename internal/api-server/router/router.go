@@ -3,19 +3,25 @@ package router
 import (
 	"github.com/gin-gonic/gin"
 	"matrixchaindata/internal/api-server/controller"
+	"matrixchaindata/pkg/settings"
 )
 
 // api服务路由
 // 利用gin重写
 
 // 初始化路由
-func InitRouter(gin *gin.Engine) {
+func InitRouter() *gin.Engine {
+	// 路由引擎
+	routerEngine := gin.New()
+	gin.SetMode(settings.Setting.RunMode)
+	// 添加日志中间件, 恢复中间件
+	routerEngine.Use(gin.Logger())
+	routerEngine.Use(gin.Recovery())
 
 	/// count 统计信息
-
 	// 如果可以链上查询尽量链上查询
 	///// 区块路由组
-	blockGroup := gin.Group("/api/block")
+	blockGroup := routerEngine.Group("/api/block")
 	{
 		block := &controller.BlockController{}
 		// 获取区块
@@ -27,7 +33,7 @@ func InitRouter(gin *gin.Engine) {
 	}
 
 	/// 交易路由组
-	txGroup := gin.Group("/api/tx")
+	txGroup := routerEngine.Group("/api/tx")
 	{
 		tx := &controller.TxController{}
 		// 根据txid获取交易信息
@@ -45,10 +51,9 @@ func InitRouter(gin *gin.Engine) {
 
 	}
 
-	/// account 账号信息相关
 	// 扫描块程序相关
 	///// 添加一个条链，方便浏览器切换
-	scanGroup := gin.Group("/api/scan")
+	scanGroup := routerEngine.Group("/api/scan")
 	{
 		scan := &controller.ScanController{}
 		// 添加一条链
@@ -63,4 +68,8 @@ func InitRouter(gin *gin.Engine) {
 		scanGroup.GET("/get_scanning_chain", scan.GetScanningChains)
 	}
 
+	// todo 增加
+	/// account 账号信息相关
+
+	return routerEngine
 }
