@@ -8,7 +8,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"log"
 	"matrixchaindata/global"
-	"matrixchaindata/utils"
+	"matrixchaindata/pkg/utils"
 	"strconv"
 	"sync"
 )
@@ -62,10 +62,9 @@ func (w *WriteDB) Save(block *utils.InternalBlock, node, bcname string) error {
 		return fmt.Errorf("height is handled, countine")
 	}
 
-	// todo 可以并发写的，他们不会操作同一张表
 	// 有一点需要注意的是block传过来的是指针，读数据就好了不要写。
-	//存统计 （account, count表）
 	go func() {
+		//存统计 （account, count表）
 		err := w.SaveCount(block, node, bcname)
 		if err != nil {
 			log.Println(err)
@@ -92,11 +91,11 @@ func (w *WriteDB) Save(block *utils.InternalBlock, node, bcname string) error {
 }
 
 // 这个区块的数据是否处理过
-func (w *WriteDB) IsHandle(block_id int64, node, bcname string) bool {
+func (w *WriteDB) IsHandle(block_height int64, node, bcname string) bool {
 	blockCol := w.MongoClient.Database.Collection(utils.BlockCol(node, bcname))
-	data := blockCol.FindOne(nil, bson.D{{"_id", block_id}})
+	data := blockCol.FindOne(nil, bson.D{{"_id", block_height}})
 	if data.Err() != nil {
-		// 没有记录
+		// 没有记录,则没有处理过
 		return false
 	}
 	return true
@@ -117,13 +116,13 @@ func (w *WriteDB) SaveCount(block *utils.InternalBlock, node, bcname string) err
 		counts = &Count{}
 
 		//id必须有12个字节
-		//获取统计数
+		//获取统计数据
 		err := countCol.FindOne(nil, bson.M{"_id": "chain_count"}).Decode(counts)
 		if err != nil && err != mongo.ErrNoDocuments {
 			return err
 		}
 
-		//获取账户地址
+		//获取账户地址数据
 		cursor, err := accCol.Find(nil, bson.M{})
 		if err != nil && err != mongo.ErrNoDocuments {
 			return err
@@ -136,7 +135,7 @@ func (w *WriteDB) SaveCount(block *utils.InternalBlock, node, bcname string) err
 			counts.Accounts[i] = v.(bson.D).Map()["_id"]
 		}
 	}
-
+	/// 统计数据
 	//获取账户地址
 	for _, tx := range block.Transactions {
 		// 账户
@@ -155,18 +154,12 @@ func (w *WriteDB) SaveCount(block *utils.InternalBlock, node, bcname string) err
 					{"_id", txOutput.ToAddr},
 					{"timestamp", tx.Timestamp},
 				})
-				// by boxi
-				//_, err := accCol.UpdateOne(nil,
-				//	bson.D{{"_id", txOutput.ToAddr}},
-				//	bson.D{
-				//		{"_id", txOutput.ToAddr},
-				//		{"timestamp", tx.Timestamp}})
 				if err != nil {
 					return err
 				}
 			}
 		}
-		// 统计部署的合约合约
+		// 统计部署的合约
 		if tx.ContractRequests != nil {
 			for _, v := range tx.ContractRequests {
 				// 判断合约名字是否存在
@@ -184,17 +177,6 @@ func (w *WriteDB) SaveCount(block *utils.InternalBlock, node, bcname string) err
 	//统计交易总数
 	counts.TxCount += int64(block.TxCount)
 
-	// todo 修改获取金额的方式
-	// 扫描旧的区块的时候，每次块都请求一次，链服务器压力大
-	// io 过程漫长
-	//统计全网金额
-	//total, _, err := chain_server.GetUtxoTotalAndTrunkHeight(node, bcname)
-	//if err != nil {
-	//	log.Printf("get utxo total failed, height: %d, error: %s", block.Height, err)
-	//} else {
-	//	counts.CoinCount = total
-	//}
-
 	up := true
 	_, err := countCol.UpdateOne(nil,
 		bson.M{"_id": "chain_count"},
@@ -210,6 +192,11 @@ func (w *WriteDB) SaveCount(block *utils.InternalBlock, node, bcname string) err
 }
 
 // 保存交易数据
+// -----------------------
+// 核心：重点处理交易数据
+// 数据格式问题
+// todo 调整数据格式
+// -----------------------
 func (w *WriteDB) SaveTx(block *utils.InternalBlock, node, bcname string) error {
 
 	//索引 最新的交易
@@ -284,22 +271,20 @@ func (w *WriteDB) SaveTx(block *utils.InternalBlock, node, bcname string) error 
 
 // 保存区块
 func (w *WriteDB) SaveBlock(block *utils.InternalBlock, node, bcname string) error {
-
-	txids := []bson.D{}
-	for _, v := range block.Transactions {
-		txids = append(txids, bson.D{
-			{"$ref", "tx"},
-			{"$id", v.Txid},
-		})
-	}
-
+	//txids := []bson.D{}
+	//for _, v := range block.Transactions {
+	//	txids = append(txids, bson.D{
+	//		{"$ref", "tx"},
+	//		{"$id", v.Txid},
+	//	})
+	//}
 	iblock := bson.D{
 		{"_id", block.Height},
 		{"blockid", block.Blockid},
-		{"proposer", block.Proposer},
+		//{"proposer", block.Proposer},
 		//{"transactions", txids},
-		{"txCount", block.TxCount},
-		{"preHash", block.PreHash},
+		//{"txCount", block.TxCount},
+		//{"preHash", block.PreHash},
 		//{"inTrunk", block.InTrunk},
 		{"timestamp", block.Timestamp},
 	}
