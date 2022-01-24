@@ -1,6 +1,7 @@
 package scan_server
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/wxnacy/wgo/arrays"
 	"go.mongodb.org/mongo-driver/bson"
@@ -19,6 +20,7 @@ import (
 // tx    交易信息表
 // account 账号信息表
 var (
+	// 统计数据，用于缓存
 	counts *Count
 	locker sync.Mutex
 )
@@ -29,19 +31,25 @@ type Count struct {
 	CoinCount string `bson:"coin_count"` //全网金额
 	AccCount  int64  `bson:"acc_count"`  //账户总数
 	Accounts  bson.A `bson:"accounts"`   //账户列表
-	Contracts bson.A `bson:"contracts"`  // 合约列表
+	Contracts bson.A `bson:"contracts"`  //合约列表
 }
 
 // 写db结构体
 type WriteDB struct {
 	// mogodb的客户端
 	MongoClient *global.MongoClient
+	// 节点
+	Node string
+	// 链名
+	Bcname string
 }
 
 // 新建一个写数据的实例
-func NewWriterDB(mongoclient *global.MongoClient) *WriteDB {
+func NewWriterDB(mongoclient *global.MongoClient, node, bcname string) *WriteDB {
 	return &WriteDB{
 		MongoClient: mongoclient,
+		Node:        node,
+		Bcname:      bcname,
 	}
 }
 
@@ -57,7 +65,7 @@ func (w *WriteDB) Cloce() {
 func (w *WriteDB) Save(block *utils.InternalBlock, node, bcname string) error {
 
 	// 多加一层判断，这个区块是否处理过了
-	if w.IsHandle(block.Height, node, bcname) {
+	if w.IsHandle(block.Height) {
 		log.Println("this block is handled", block.Height)
 		return fmt.Errorf("height is handled, countine")
 	}
@@ -65,7 +73,7 @@ func (w *WriteDB) Save(block *utils.InternalBlock, node, bcname string) error {
 	// 有一点需要注意的是block传过来的是指针，读数据就好了不要写。
 	go func() {
 		//存统计 （account, count表）
-		err := w.SaveCount(block, node, bcname)
+		err := w.SaveCount(block)
 		if err != nil {
 			log.Println(err)
 		}
@@ -73,7 +81,7 @@ func (w *WriteDB) Save(block *utils.InternalBlock, node, bcname string) error {
 
 	go func() {
 		//存交易 （tx表）
-		err := w.SaveTx(block, node, bcname)
+		err := w.SaveTx(block)
 		if err != nil {
 			log.Println(err)
 		}
@@ -81,7 +89,7 @@ func (w *WriteDB) Save(block *utils.InternalBlock, node, bcname string) error {
 
 	go func() {
 		//存区块 （block表）
-		err := w.SaveBlock(block, node, bcname)
+		err := w.SaveBlock(block)
 		if err != nil {
 			log.Println(err)
 		}
@@ -91,8 +99,8 @@ func (w *WriteDB) Save(block *utils.InternalBlock, node, bcname string) error {
 }
 
 // 这个区块的数据是否处理过
-func (w *WriteDB) IsHandle(block_height int64, node, bcname string) bool {
-	blockCol := w.MongoClient.Database.Collection(utils.BlockCol(node, bcname))
+func (w *WriteDB) IsHandle(block_height int64) bool {
+	blockCol := w.MongoClient.Database.Collection(utils.BlockCol(w.Node, w.Bcname))
 	data := blockCol.FindOne(nil, bson.D{{"_id", block_height}})
 	if data.Err() != nil {
 		// 没有记录,则没有处理过
@@ -102,14 +110,14 @@ func (w *WriteDB) IsHandle(block_height int64, node, bcname string) bool {
 }
 
 // 保存统计数据
-func (w *WriteDB) SaveCount(block *utils.InternalBlock, node, bcname string) error {
+func (w *WriteDB) SaveCount(block *utils.InternalBlock) error {
 	locker.Lock()
 	defer locker.Unlock()
 
 	// 总数统计集合
-	countCol := w.MongoClient.Database.Collection(utils.CountCol(node, bcname))
+	countCol := w.MongoClient.Database.Collection(utils.CountCol(w.Node, w.Bcname))
 	// 账号统计集合
-	accCol := w.MongoClient.Database.Collection(utils.AccountCol(node, bcname))
+	accCol := w.MongoClient.Database.Collection(utils.AccountCol(w.Node, w.Bcname))
 
 	//获取已有数据,缓存起来
 	if counts == nil {
@@ -191,25 +199,25 @@ func (w *WriteDB) SaveCount(block *utils.InternalBlock, node, bcname string) err
 	return err
 }
 
-// 保存交易数据
+// 保存交易数据***
 // -----------------------
 // 核心：重点处理交易数据
 // 数据格式问题
-// todo 调整数据格式
+// todo 区分交易类型
 // -----------------------
-func (w *WriteDB) SaveTx(block *utils.InternalBlock, node, bcname string) error {
+func (w *WriteDB) SaveTx(block *utils.InternalBlock) error {
 
 	//索引 最新的交易
 	//global.col.createIndex({"timestamp":-1}, {background: true})
 
-	txCol := w.MongoClient.Database.Collection(utils.TxCol(node, bcname))
+	txCol := w.MongoClient.Database.Collection(utils.TxCol(w.Node, w.Bcname))
 	up := true
 	var err error
 
-	//遍历交易
+	//遍历交易,处理交易数据
 	for _, tx := range block.Transactions {
 
-		//交易类型
+		//交易类型---正常的转账
 		status := "normal"
 		//该交易是否成功
 		state := "fail"
@@ -233,36 +241,26 @@ func (w *WriteDB) SaveTx(block *utils.InternalBlock, node, bcname string) error 
 		} else if tx.Desc == "award" { //出块奖励
 			status = "block_reward"
 		}
-		// 合约调用
+
+		// 合约调用判断
 		if len(tx.ContractRequests) >= 1 {
-			status = fmt.Sprintf("%s_contractt", tx.ContractRequests[0].ContractName)
+			status = fmt.Sprintf("%s_contract", tx.ContractRequests[0].ContractName)
 		}
 
+		// 处理交易id显示
+		txid, _ := tx.Txid.MarshalJSON()
+		// 处理这笔交易
+		txBytes, _ := json.MarshalIndent(tx, " ", " ")
+
 		_, err = txCol.ReplaceOne(nil,
-			bson.M{"_id": tx.Txid},
+			bson.M{"_id": string(txid)},
 			bson.D{
-				{"_id", tx.Txid},
+				{"_id", string(txid)},
 				{"status", status},
 				{"height", height},
 				{"timestamp", tx.Timestamp},
 				{"state", state},
-				{"tx", tx},
-				//{"blockHeight", block.Height},
-				//{"timestamp", tx.Timestamp},
-				//{"initiator", tx.Initiator},
-				////{"txInputs", tx.TxInputs},
-				////{"txOutputs", tx.TxOutputs},
-				//{"coinbase", tx.Coinbase},
-				//{"voteCoinbase", tx.VoteCoinbase},
-				//{"proposer", block.Proposer},
-				//{"formaddress",formaddress},
-				//{"toaddress",toaddress},
-				//{"moduleName",moduleName},
-				//{"contractName",contractName},
-				//{"methodName",methodName},
-				//{"args",args},
-				//{"fromAmount",fromAmount},
-				//{"toAmount",toAmount},
+				{"tx", string(txBytes)},
 			},
 			&options.ReplaceOptions{Upsert: &up})
 	}
@@ -270,17 +268,13 @@ func (w *WriteDB) SaveTx(block *utils.InternalBlock, node, bcname string) error 
 }
 
 // 保存区块
-func (w *WriteDB) SaveBlock(block *utils.InternalBlock, node, bcname string) error {
-	//txids := []bson.D{}
-	//for _, v := range block.Transactions {
-	//	txids = append(txids, bson.D{
-	//		{"$ref", "tx"},
-	//		{"$id", v.Txid},
-	//	})
-	//}
+func (w *WriteDB) SaveBlock(block *utils.InternalBlock) error {
+	// 处理blockeid
+	blockeid, _ := block.Blockid.MarshalJSON()
+
 	iblock := bson.D{
 		{"_id", block.Height},
-		{"blockid", block.Blockid},
+		{"blockid", string(blockeid)},
 		//{"proposer", block.Proposer},
 		//{"transactions", txids},
 		//{"txCount", block.TxCount},
@@ -289,7 +283,7 @@ func (w *WriteDB) SaveBlock(block *utils.InternalBlock, node, bcname string) err
 		{"timestamp", block.Timestamp},
 	}
 
-	blockCol := w.MongoClient.Database.Collection(utils.BlockCol(node, bcname))
+	blockCol := w.MongoClient.Database.Collection(utils.BlockCol(w.Node, w.Bcname))
 	_, err := blockCol.InsertOne(nil, iblock)
 	return err
 }

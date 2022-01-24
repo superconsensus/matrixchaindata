@@ -1,15 +1,11 @@
 package main
 
 import (
-	"context"
 	"log"
 	"matrixchaindata/global"
 	"matrixchaindata/internal/api-server/router"
 	"matrixchaindata/pkg/settings"
-	"net/http"
 	"os"
-	"os/signal"
-	"time"
 )
 
 func main() {
@@ -29,30 +25,31 @@ func main() {
 
 	//注册路由
 	r := router.InitRouter()
-	s := &http.Server{
-		Addr:           settings.Setting.HttpPort,
-		Handler:        r,
-		ReadTimeout:    60,
-		WriteTimeout:   60,
-		MaxHeaderBytes: 1 << 20,
-	}
-
-	// 启动http server
-	go func() {
-		if err := s.ListenAndServe(); err != nil {
-			log.Println("listen err :", err)
-		}
-	}()
-
-	// 优雅停止
-	quit := make(chan os.Signal)
-	signal.Notify(quit, os.Interrupt)
-	<-quit
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := s.Shutdown(ctx); err != nil {
-		log.Fatal("Server Shutdown:", err)
-	}
-	log.Println("Server exiting")
+	_ = r.Run(settings.Setting.HttpPort)
+	//s := &http.Server{
+	//	Addr:           settings.Setting.HttpPort,
+	//	Handler:        r,
+	//	ReadTimeout:    60,
+	//	WriteTimeout:   60,
+	//	MaxHeaderBytes: 1 << 20,
+	//}
+	//
+	//// 启动http server
+	//go func() {
+	//	if err := s.ListenAndServe(); err != nil {
+	//		log.Println("listen err :", err)
+	//	}
+	//}()
+	//
+	//// 优雅停止
+	//quit := make(chan os.Signal)
+	//signal.Notify(quit, os.Interrupt)
+	//<-quit
+	//
+	//ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	//defer cancel()
+	//if err := s.Shutdown(ctx); err != nil {
+	//	log.Fatal("Server Shutdown:", err)
+	//}
+	//log.Println("Server exiting")
 }

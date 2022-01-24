@@ -47,7 +47,7 @@ func NewScanner(node, bcname string) (*Scaner, error) {
 
 	//数据库处理
 	// 传入的是全局db,不要在这里关闭。应该在mian中处理
-	writeDB := NewWriterDB(global.GloMongodbClient)
+	writeDB := NewWriterDB(global.GloMongodbClient, node, bcname)
 
 	// 监听数据
 	watcher, err := client.WatchBlockEvent(bcname)

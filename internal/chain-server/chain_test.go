@@ -21,7 +21,7 @@ func Test_GetBlockById(t *testing.T) {
 	fmtBlock := utils.FromInternalBlockPB(block)
 
 	// 测试SaveTx
-	output, err := json.Marshal(fmtBlock.Transactions[0])
+	output, err := json.MarshalIndent(fmtBlock.Transactions, " ", " ")
 	if err != nil {
 		fmt.Println(err)
 	}
