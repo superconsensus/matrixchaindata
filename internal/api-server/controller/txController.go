@@ -1,11 +1,11 @@
 package controller
 
 import (
-	"fmt"
 	"github.com/gin-gonic/gin"
 	"log"
 	"matrixchaindata/internal/api-server/service"
 	chain_server "matrixchaindata/internal/chain-server"
+	"matrixchaindata/pkg/response"
 	"net/http"
 	"strconv"
 )
@@ -41,37 +41,36 @@ func (t *TxController) GetTx(c *gin.Context) {
 	params := TxReq{}
 	err := c.ShouldBindJSON(&params)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": err,
-		})
+		c.JSON(http.StatusOK, response.ErrParam)
 		return
 	}
+
 	// 参数校验
 	if len(params.Txid) != 64 {
-		fmt.Printf("error! txid must be 64 char, you input txid is: %s", params.Txid)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "txid error"})
+		log.Printf("error! txid must be 64 char, you input txid is: %s", params.Txid)
+		c.JSON(http.StatusOK, response.ErrParam)
 		return
 	}
 	if params.Bcname == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "bcname is nil"})
+		log.Println("bcname is nil")
+		c.JSON(http.StatusOK, response.ErrParam)
 		return
 	}
+
 	// 直接调用链服务查询
 	chainInfo, err := service.NewSever().GetChainInfo(params.Network, params.Bcname)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, err)
+		c.JSON(http.StatusInternalServerError, response.Err.WithMsg(err.Error()))
 		return
 	}
 	_node := chainInfo["node"].(string)
 
 	tx, err := chain_server.GetTxByTxId(_node, params.Bcname, params.Txid)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "get the tx is failed"})
+		c.JSON(http.StatusInternalServerError, response.Err.WithMsg(err.Error()))
 		return
 	}
-	c.JSON(http.StatusOK, tx)
-	return
-	// 返回
+	c.JSON(http.StatusOK, response.OK.WithData(tx))
 }
 
 // 获取交易总量
@@ -89,14 +88,12 @@ func (t *TxController) GetTxAmount(c *gin.Context) {
 	params := TxAmountReq{}
 	err := c.ShouldBindJSON(&params)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": err,
-		})
+		c.JSON(http.StatusOK, response.ErrParam)
 		return
 	}
 	// 校验参数
 	if params.Bcname == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "bcname is nil"})
+		c.JSON(http.StatusOK, response.ErrParam)
 		return
 	}
 	opt, _ := strconv.ParseInt(params.Opt, 10, 64)
@@ -105,21 +102,17 @@ func (t *TxController) GetTxAmount(c *gin.Context) {
 	server := service.NewSever()
 	chainInfo, err := server.GetChainInfo(params.Network, params.Bcname)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, err)
+		c.JSON(http.StatusInternalServerError, response.Err.WithMsg(err.Error()))
 		return
 	}
 	_node := chainInfo["node"].(string)
 
 	count, err := server.GetTxCount(_node, params.Bcname, params.Addr, opt)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": err,
-		})
+		c.JSON(http.StatusInternalServerError, response.Err.WithMsg(err.Error()))
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{
-		"count": count,
-	})
+	c.JSON(http.StatusOK, response.OK.WithData(count))
 }
 
 // 获取交易列表
@@ -135,29 +128,26 @@ func (t *TxController) GetTxList(c *gin.Context) {
 	params := &GetList{}
 	err := c.ShouldBindJSON(params)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": err,
-		})
+		c.JSON(http.StatusOK, response.ErrParam)
 		return
 	}
 	opt, _ := strconv.ParseInt(params.Opt, 10, 64)
+
 	// 调用service
 	server := service.NewSever()
 	chainInfo, err := server.GetChainInfo(params.Network, params.Bcname)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, err)
+		c.JSON(http.StatusInternalServerError, response.Err.WithMsg(err.Error()))
 		return
 	}
 	_node := chainInfo["node"].(string)
 
 	data, err := server.GetTxList(_node, params.Bcname, params.Addr, opt)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": err,
-		})
+		c.JSON(http.StatusInternalServerError, response.Err.WithMsg(err.Error()))
 		return
 	}
-	c.JSON(http.StatusOK, &data)
+	c.JSON(http.StatusOK, response.OK.WithData(&data))
 	return
 }
 
@@ -173,15 +163,13 @@ func (t *TxController) GetContractList(c *gin.Context) {
 	params := &GetContListReq{}
 	err := c.ShouldBindJSON(params)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": err,
-		})
+		c.JSON(http.StatusBadRequest, response.ErrParam)
 		return
 	}
 	// service
 	chainInfo, err := service.NewSever().GetChainInfo(params.Network, params.Bcname)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, err)
+		c.JSON(http.StatusInternalServerError, response.Err.WithMsg(err.Error()))
 		return
 	}
 	_node := chainInfo["node"].(string)
@@ -189,14 +177,12 @@ func (t *TxController) GetContractList(c *gin.Context) {
 	// 调用链服务直接查询
 	if params.Address != "" {
 		data := chain_server.QueryAddressContracts(_node, params.Bcname, params.Address)
-		c.JSON(http.StatusOK, data)
+		c.JSON(http.StatusOK, response.OK.WithData(data))
 	} else if params.ContractAccount != "" {
 		data := chain_server.QueryAccountContracts(_node, params.Bcname, params.ContractAccount)
-		c.JSON(http.StatusOK, data)
+		c.JSON(http.StatusOK, response.OK.WithData(data))
 	} else {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "check params",
-		})
+		c.JSON(http.StatusBadRequest, response.ErrParam)
 	}
 }
 
@@ -211,9 +197,7 @@ func (t *TxController) GetContractTxs(c *gin.Context) {
 	params := &ContractTxs{}
 	err := c.ShouldBindJSON(params)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": err,
-		})
+		c.JSON(http.StatusBadRequest, response.ErrParam)
 		return
 	}
 	// 调用service
@@ -221,17 +205,15 @@ func (t *TxController) GetContractTxs(c *gin.Context) {
 	chainInfo, err := server.GetChainInfo(params.Network, params.Bcname)
 	if err != nil {
 		log.Println("info", err)
-		c.JSON(http.StatusInternalServerError, err)
+		c.JSON(http.StatusInternalServerError, response.Err.WithMsg(err.Error()))
 		return
 	}
 	_node := chainInfo["node"].(string)
 
 	data, err := server.GetContractTxs(_node, params.Bcname, params.ContractName)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": err,
-		})
+		c.JSON(http.StatusInternalServerError, response.Err.WithMsg(err.Error()))
 		return
 	}
-	c.JSON(http.StatusOK, &data)
+	c.JSON(http.StatusOK, response.OK.WithData(&data))
 }

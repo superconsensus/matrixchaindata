@@ -16,7 +16,7 @@ import (
 // 直接去链上拿
 func (s *Serve) GetBlockFormChain(node, bcname, block_hash string, block_height int64) (*utils.InternalBlock, error) {
 
-	// hash or id
+	// hash or height
 	if block_hash == "" {
 		// 根据高度获取
 		// node 直接配置读取
@@ -35,7 +35,7 @@ func (s *Serve) GetBlockFormChain(node, bcname, block_hash string, block_height 
 	return utils.FromInternalBlockPB(block), nil
 }
 
-// 从数据库拿到数据
+// 从数据库拿到数据---弃用
 func (s *Serve) GetBlockFromDB(block_hash string, block_height int64, node, bcname string) (bson.M, error) {
 	elem := bson.M{}
 	err := s.Dao.MongoClient.Collection(utils.BlockCol(node, bcname)).FindOne(

@@ -48,7 +48,6 @@ func InitRouter() *gin.Engine {
 		txGroup.POST("/get_contract_list", tx.GetContractList)
 		// 根据合约名 查出相关的交易
 		txGroup.POST("/get_contract_txs", tx.GetContractTxs)
-
 	}
 
 	// 扫描块程序相关
