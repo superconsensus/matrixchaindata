@@ -13,6 +13,9 @@ var (
 
 type Config struct {
 	RunMode  string `json:"run_mode"`
+	LogPath  string `json:"log_path"`
+	LogName  string `json:"log_name"`
+	LogExt   string `json:"log_ext"`
 	HttpPort string `json:"http_port"`
 	MongoDB  string `json:"mongodb"`
 	Database string `json:"database"`

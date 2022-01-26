@@ -1,9 +1,11 @@
 package main
 
 import (
+	lumberjack "gopkg.in/natefinch/lumberjack.v2"
 	"log"
 	"matrixchaindata/global"
 	"matrixchaindata/internal/api-server/router"
+	"matrixchaindata/pkg/logger"
 	"matrixchaindata/pkg/settings"
 	"os"
 )
@@ -52,4 +54,17 @@ func main() {
 	//	log.Fatal("Server Shutdown:", err)
 	//}
 	//log.Println("Server exiting")
+}
+
+// 设置全局对象
+func serupLogger() error {
+	fileName := settings.Setting.LogPath + "/" + settings.Setting.LogName + settings.Setting.LogExt
+	global.Logger = logger.NewLogger(&lumberjack.Logger{
+		Filename:  fileName,
+		MaxSize:   600,
+		MaxAge:    10,
+		LocalTime: true,
+	}, "", log.LstdFlags).WithCallers(2)
+
+	return nil
 }

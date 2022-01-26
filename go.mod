@@ -12,4 +12,5 @@ require (
 	go.mongodb.org/mongo-driver v1.8.1
 	golang.org/x/net v0.0.0-20211216030914-fe4d6282115f
 	google.golang.org/grpc v1.43.0
+	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
 )

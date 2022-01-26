@@ -1,5 +1,8 @@
 {
   "run_mode": "debug",
+  "log_path": ".",
+  "log_name": "matrixdata",
+  "log_ext": ".log",
   "http_port" : ":8080",
   "mongodb": "mongodb://admin:admin@192.168.199.128:27017",
   "database": "boxi"
