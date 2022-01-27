@@ -1,0 +1,16 @@
+{
+  "run_mode": "debug",
+  "http_port" : ":8080",
+  "db": {
+    "conn_mode": "replicaSet",
+    "user_name": "admin",
+    "pass_wold": "admin",
+    "database" : "boxi",
+    "host_list" : ["192.168.199.128:27017","192.168.199.128:27018","192.168.199.128:27019"]
+  },
+  "log": {
+    "log_path": "./mock",
+    "log_name": "matrixdata",
+    "log_ext": ".log"
+  }
+}

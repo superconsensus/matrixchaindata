@@ -2,8 +2,8 @@ package router
 
 import (
 	"github.com/gin-gonic/gin"
+	"matrixchaindata/global"
 	"matrixchaindata/internal/api-server/controller"
-	"matrixchaindata/pkg/settings"
 )
 
 // api服务路由
@@ -13,7 +13,7 @@ import (
 func InitRouter() *gin.Engine {
 	// 路由引擎
 	routerEngine := gin.New()
-	gin.SetMode(settings.Setting.RunMode)
+	gin.SetMode(global.Config.RunMode)
 	// 添加日志中间件, 恢复中间件
 	routerEngine.Use(gin.Logger())
 	routerEngine.Use(gin.Recovery())

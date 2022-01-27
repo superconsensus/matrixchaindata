@@ -1,33 +1,51 @@
 package main
 
 import (
-	lumberjack "gopkg.in/natefinch/lumberjack.v2"
 	"log"
 	"matrixchaindata/global"
 	"matrixchaindata/internal/api-server/router"
-	"matrixchaindata/pkg/logger"
-	"matrixchaindata/pkg/settings"
+	"matrixchaindata/pkg/sysinit"
 	"os"
 )
 
-func main() {
-	//读取配置文件
+// 程序初始化
+func SysInit() error {
+	log.Println("------------start config init ------------")
+	// 配置初始化
 	dir, err := os.Getwd()
 	if err != nil {
-		panic(err)
+		return err
 	}
-	settings.ParseConfig(dir + "/config/config.json")
-	log.Printf("%#v", settings.Setting)
-
-	// 实例化数据库
-	err = global.InitmongoDB(settings.Setting.MongoDB, settings.Setting.Database)
+	config, err := sysinit.InitConfig(dir + "/config/config_single.json")
 	if err != nil {
-		log.Println(err)
+		return err
 	}
+	global.Config = config
 
+	log.Println("------------ start db init ------------")
+	// 数据库配置初始化
+	client, err := sysinit.InitDB(global.Config.DB)
+	if err != nil {
+		log.Println("init db error, check them")
+		return err
+	}
+	global.GMongodbClient = client
+
+	// 日志配置初始化
+	//global.GLogger = sysinit.InitLogger(global.Config.Log)
+	return nil
+}
+
+func main() {
+	// 程序初始化
+	err := SysInit()
+	if err != nil {
+		log.Println("sysinit error, check them", err)
+		return
+	}
 	//注册路由
 	r := router.InitRouter()
-	_ = r.Run(settings.Setting.HttpPort)
+	_ = r.Run(global.Config.HttpPort)
 	//s := &http.Server{
 	//	Addr:           settings.Setting.HttpPort,
 	//	Handler:        r,
@@ -54,17 +72,4 @@ func main() {
 	//	log.Fatal("Server Shutdown:", err)
 	//}
 	//log.Println("Server exiting")
-}
-
-// 设置全局对象
-func serupLogger() error {
-	fileName := settings.Setting.LogPath + "/" + settings.Setting.LogName + settings.Setting.LogExt
-	global.Logger = logger.NewLogger(&lumberjack.Logger{
-		Filename:  fileName,
-		MaxSize:   600,
-		MaxAge:    10,
-		LocalTime: true,
-	}, "", log.LstdFlags).WithCallers(2)
-
-	return nil
 }
