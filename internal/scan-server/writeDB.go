@@ -8,7 +8,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"log"
-	"matrixchaindata/global"
+	"matrixchaindata/pkg/sysinit"
 	"matrixchaindata/pkg/utils"
 	"strconv"
 	"sync"
@@ -37,7 +37,7 @@ type Count struct {
 // 写db结构体
 type WriteDB struct {
 	// mogodb的客户端
-	MongoClient *global.MongoClient
+	MongoClient *sysinit.MongoClient
 	// 节点
 	Node string
 	// 链名
@@ -45,7 +45,7 @@ type WriteDB struct {
 }
 
 // 新建一个写数据的实例
-func NewWriterDB(mongoclient *global.MongoClient, node, bcname string) *WriteDB {
+func NewWriterDB(mongoclient *sysinit.MongoClient, node, bcname string) *WriteDB {
 	return &WriteDB{
 		MongoClient: mongoclient,
 		Node:        node,

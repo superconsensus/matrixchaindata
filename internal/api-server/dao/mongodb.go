@@ -1,16 +1,16 @@
 package dao
 
 import (
-	"matrixchaindata/global"
+	"matrixchaindata/pkg/sysinit"
 )
 
 type Dao struct {
 	// 数据库客户端
-	MongoClient *global.MongoClient
+	MongoClient *sysinit.MongoClient
 }
 
 // 新建数据连接实例
-func NewDao(mongoclient *global.MongoClient) *Dao {
+func NewDao(mongoclient *sysinit.MongoClient) *Dao {
 	return &Dao{
 		MongoClient: mongoclient,
 	}

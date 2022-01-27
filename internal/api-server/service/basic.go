@@ -11,7 +11,7 @@ type Serve struct {
 
 func NewSever() *Serve {
 	// 直接从全局的db拿到 数据库连接构造dao层
-	d := dao.NewDao(global.GloMongodbClient)
+	d := dao.NewDao(global.GMongodbClient)
 	return newServe(d)
 }
 
